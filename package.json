@@ -1,7 +1,9 @@
 {
-  "name": "yt-playlist-manager",
-  "type": "module",
+  "name": "youtube-playlist-manager",
   "private": true,
+  "scripts": {
+    "dev": "bun run --cwd packages/server dev"
+  },
   "workspaces": [
     "packages/*"
   ],

@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
+import api from './routes/api'
+import auth from './routes/auth'
 
-const app = new Hono()
-
-app.get('/', c => c.text('Hello Hono!'))
-
-export default app
+export default new Hono()
+  .get('/', c => c.text('Hello Hono!'))
+  .route('/auth', auth)
+  .route('/api', api)
