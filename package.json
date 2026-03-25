@@ -2,13 +2,16 @@
   "name": "youtube-playlist-manager",
   "private": true,
   "scripts": {
-    "dev": "bun run --cwd packages/server dev"
+    "dev": "concurrently -n server,web -c blue,green \"bun run dev:server\" \"bun run dev:web\"",
+    "dev:server": "bun run --cwd packages/server dev",
+    "dev:web": "bun run --cwd packages/web dev"
   },
   "workspaces": [
     "packages/*"
   ],
   "devDependencies": {
     "@biomejs/biome": "^2.4.8",
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "concurrently": "^9.2.1"
   }
 }
