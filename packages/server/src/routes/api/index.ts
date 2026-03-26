@@ -19,7 +19,7 @@ api.put('/hello', c =>
 api.get('/counter/:count', c => {
   const count = Number(c.req.param('count'))
   if (Number.isNaN(count))
-    return c.json({ error: 'Count is not a number' }, 400)
+    return c.json({ message: 'Count is not a number' }, 400)
   return c.json({ count: count + 1 })
 })
 

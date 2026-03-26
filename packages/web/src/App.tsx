@@ -1,3 +1,4 @@
+import { useMutation } from '@tanstack/react-query'
 import { useState } from 'react'
 import heroImg from './assets/hero.png'
 import reactLogo from './assets/react.svg'
@@ -7,10 +8,17 @@ import './App.css'
 function App() {
   const [count, setCount] = useState(0)
 
-  const onClick = async () => {
-    const data = await (await fetch(`/api/counter/${count}`)).json()
-    setCount(data.count)
-  }
+  const mutation = useMutation({
+    mutationFn: async (c: number) => {
+      const res = await fetch(`/api/counter/${c}`)
+      if (!res.ok) throw await res.json()
+      return res.json()
+    },
+    onSuccess: data => setCount(data.count),
+    onError: error => console.error(error.message)
+  })
+
+  if (mutation.error) return <h1>Error: {mutation.error.message}</h1>
 
   return (
     <section id="center">
@@ -25,8 +33,12 @@ function App() {
           Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
         </p>
       </div>
-      <button className="counter" onClick={onClick} type="button">
-        Count is {count}
+      <button
+        className="counter"
+        onClick={() => mutation.mutate(count)}
+        type="button"
+      >
+        {mutation.isPending ? 'Loading...' : `Count is ${count}`}
       </button>
     </section>
   )
