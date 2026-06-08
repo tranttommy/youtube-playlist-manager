@@ -1,7 +1,8 @@
 {
   "name": "@ypm/server",
   "scripts": {
-    "dev": "bun run --hot src/index.ts"
+    "dev": "bun run --hot src/index.ts",
+    "migrate": "bun run src/db/migrate.ts"
   },
   "dependencies": {
     "googleapis": "^173.0.0",
