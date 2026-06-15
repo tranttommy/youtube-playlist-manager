@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
+import type { UserProfile } from '@ypm/shared'
 import { useState } from 'react'
 import heroImg from './assets/hero.png'
 import reactLogo from './assets/react.svg'
@@ -7,7 +8,7 @@ import './App.css'
 
 function App() {
   const [count, setCount] = useState(0)
-  const { data: me, isLoading } = useQuery({
+  const { data: me, isLoading } = useQuery<UserProfile | null>({
     queryKey: ['me'],
     queryFn: async () => (await fetch('/auth/me')).json()
   })

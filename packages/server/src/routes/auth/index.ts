@@ -1,3 +1,4 @@
+import type { UserProfile } from '@ypm/shared'
 import { sql } from 'bun'
 import { google } from 'googleapis'
 import { Hono } from 'hono'
@@ -75,7 +76,7 @@ export default new Hono()
     const sessionId = getCookie(c, SESSION_ID)
     if (!sessionId) return c.json(null)
 
-    const [user] = await sql`
+    const [user] = await sql<UserProfile[]>`
       SELECT u.id, u.email, u.name, u.picture
       FROM sessions s 
       JOIN users u ON u.id = s.user_id

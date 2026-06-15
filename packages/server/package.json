@@ -5,6 +5,7 @@
     "migrate": "bun run src/db/migrate.ts"
   },
   "dependencies": {
+    "@ypm/shared": "workspace:*",
     "googleapis": "^173.0.0",
     "hono": "^4.12.8"
   }

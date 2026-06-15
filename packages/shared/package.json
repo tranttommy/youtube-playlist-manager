@@ -1,0 +1,7 @@
+{
+  "name": "@ypm/shared",
+  "private": true,
+  "exports": {
+    ".": "./src/types.ts"
+  }
+}
