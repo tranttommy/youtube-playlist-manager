@@ -1,3 +1,4 @@
+import { sql } from 'bun'
 import { google } from 'googleapis'
 import { Hono } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
@@ -9,14 +10,7 @@ const oauth2Client = new google.auth.OAuth2(
   config.google.redirectUrl
 )
 
-const sessions = new Map<
-  string,
-  {
-    id?: string | null
-    givenName?: string | null
-    familyName?: string | null
-  }
->()
+const SESSION_ID = 'session_id'
 
 export default new Hono()
   .get('/login', c => {
@@ -42,13 +36,32 @@ export default new Hono()
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client })
     const { data } = await oauth2.userinfo.get()
 
-    const sessionId = crypto.randomUUID()
-    sessions.set(sessionId, {
-      id: data.id,
-      givenName: data.given_name,
-      familyName: data.family_name
-    })
-    setCookie(c, 'session_id', sessionId, {
+    const [user] = await sql<
+      { id: string }[]
+    >`INSERT INTO users (google_id, email, name, picture, access_token, refresh_token)
+      VALUES (${data.id}, ${data.email}, ${data.name}, ${data.picture}, ${tokens.access_token}, ${tokens.refresh_token}) 
+      ON CONFLICT (google_id) DO UPDATE SET
+        email = ${data.email},
+        name = ${data.name},
+        picture = ${data.picture},
+        access_token = ${tokens.access_token},
+        refresh_token = COALESCE(${tokens.refresh_token}, users.refresh_token),
+        updated_at = NOW()
+      RETURNING id
+    `
+
+    if (!user?.id) return c.json({ error: 'Failed to create user' }, 500)
+
+    const [session] = await sql<
+      { id: string }[]
+    >`INSERT INTO sessions (user_id, expires_at)
+      VALUES (${user.id}, NOW() + INTERVAL '7 days')
+      RETURNING id
+    `
+
+    if (!session?.id) return c.json({ error: 'Failed to create session' }, 500)
+
+    setCookie(c, SESSION_ID, session.id, {
       httpOnly: true,
       secure: false,
       sameSite: 'Lax',
@@ -58,18 +71,27 @@ export default new Hono()
     return c.redirect(config.webUrl)
   })
 
-  .get('/me', c => {
-    const sessionId = getCookie(c, 'session_id')
+  .get('/me', async c => {
+    const sessionId = getCookie(c, SESSION_ID)
     if (!sessionId) return c.json(null)
-    const user = sessions.get(sessionId)
-    return c.json(user)
+
+    const [user] = await sql`
+      SELECT u.id, u.email, u.name, u.picture
+      FROM sessions s 
+      JOIN users u ON u.id = s.user_id
+      WHERE s.id = ${sessionId} AND s.expires_at > NOW()
+    `
+
+    return c.json(user ?? null)
   })
 
-  .get('/logout', c => {
-    const sessionId = getCookie(c, 'session_id')
+  .get('/logout', async c => {
+    const sessionId = getCookie(c, SESSION_ID)
     if (sessionId) {
-      sessions.delete(sessionId)
-      deleteCookie(c, 'session_id', { path: '/' })
+      await sql`
+        DELETE FROM sessions WHERE id = ${sessionId}
+      `
+      deleteCookie(c, SESSION_ID, { path: '/' })
     }
     return c.redirect(config.webUrl)
   })
