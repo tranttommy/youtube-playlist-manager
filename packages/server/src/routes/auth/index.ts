@@ -53,6 +53,8 @@ export default new Hono()
 
     if (!user?.id) return c.json({ error: 'Failed to create user' }, 500)
 
+    await sql`DELETE FROM sessions WHERE user_id = ${user.id} AND expires_at < NOW()`
+
     const [session] = await sql<
       { id: string }[]
     >`INSERT INTO sessions (user_id, expires_at)
