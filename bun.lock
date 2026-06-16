@@ -5,7 +5,7 @@
     "": {
       "name": "youtube-playlist-manager",
       "devDependencies": {
-        "@biomejs/biome": "^2.4.8",
+        "@biomejs/biome": "2.5.0",
         "@types/bun": "latest",
         "concurrently": "^9.2.1",
       },
