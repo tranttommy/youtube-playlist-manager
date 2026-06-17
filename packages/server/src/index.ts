@@ -5,6 +5,5 @@ import auth from './routes/auth'
 
 export default new Hono()
   .use(logger())
-  .get('/', c => c.text('Hello Hono!'))
   .route('/auth', auth)
   .route('/api', api)

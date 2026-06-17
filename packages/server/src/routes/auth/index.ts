@@ -4,18 +4,14 @@ import { google } from 'googleapis'
 import { Hono } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import { config } from '../../config'
-
-const oauth2Client = new google.auth.OAuth2(
-  config.google.clientId,
-  config.google.clientSecret,
-  config.google.redirectUrl
-)
+import { createAuthClient } from '../../lib'
 
 const SESSION_ID = 'session_id'
 
 export default new Hono()
   .get('/login', c => {
-    const url = oauth2Client.generateAuthUrl({
+    const authClient = createAuthClient()
+    const authUrl = authClient.generateAuthUrl({
       access_type: 'offline',
       scope: [
         'openid',
@@ -24,27 +20,27 @@ export default new Hono()
         'https://www.googleapis.com/auth/youtube.force-ssl'
       ]
     })
-    return c.redirect(url)
+    return c.redirect(authUrl)
   })
 
   .get('/callback', async c => {
     const code = c.req.query('code')
     if (!code) return c.json({ error: 'No code provided' }, 400)
 
-    const { tokens } = await oauth2Client.getToken(code)
-    oauth2Client.setCredentials(tokens)
+    const authClient = createAuthClient()
+    const { tokens } = await authClient.getToken(code)
+    authClient.setCredentials(tokens)
 
-    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client })
-    const { data } = await oauth2.userinfo.get()
+    const oauth2 = google.oauth2({ version: 'v2', auth: authClient })
+    const { data: userInfo } = await oauth2.userinfo.get()
 
-    const [user] = await sql<
-      { id: string }[]
-    >`INSERT INTO users (google_id, email, name, picture, access_token, refresh_token)
-      VALUES (${data.id}, ${data.email}, ${data.name}, ${data.picture}, ${tokens.access_token}, ${tokens.refresh_token}) 
+    const [user] = await sql<{ id: string }[]>`
+      INSERT INTO users (google_id, email, name, picture, access_token, refresh_token)
+      VALUES (${userInfo.id}, ${userInfo.email}, ${userInfo.name}, ${userInfo.picture}, ${tokens.access_token}, ${tokens.refresh_token}) 
       ON CONFLICT (google_id) DO UPDATE SET
-        email = ${data.email},
-        name = ${data.name},
-        picture = ${data.picture},
+        email = ${userInfo.email},
+        name = ${userInfo.name},
+        picture = ${userInfo.picture},
         access_token = ${tokens.access_token},
         refresh_token = COALESCE(${tokens.refresh_token}, users.refresh_token),
         updated_at = NOW()
@@ -55,9 +51,8 @@ export default new Hono()
 
     await sql`DELETE FROM sessions WHERE user_id = ${user.id} AND expires_at < NOW()`
 
-    const [session] = await sql<
-      { id: string }[]
-    >`INSERT INTO sessions (user_id, expires_at)
+    const [session] = await sql<{ id: string }[]>`
+      INSERT INTO sessions (user_id, expires_at)
       VALUES (${user.id}, NOW() + INTERVAL '7 days')
       RETURNING id
     `
