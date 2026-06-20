@@ -3,6 +3,7 @@ import { sql } from 'bun'
 import type { youtube_v3 } from 'googleapis'
 import { google } from 'googleapis'
 import { Hono } from 'hono'
+import { Errors } from '../../errors'
 import { createAuthClient } from '../../lib'
 import type { UserIdEnv } from './middleware'
 
@@ -23,14 +24,12 @@ export default new Hono<YouTubeEnv>()
       FROM users
       WHERE id = ${userId}
     `
-    if (!tokens) return c.json({ error: 'No tokens found' }, 401)
+    if (!tokens)
+      throw Errors.unauthorized('YouTube connection lost, please sign in again')
 
     const authClient = createAuthClient()
     authClient.setCredentials(tokens)
-
-    const youtube = google.youtube({ version: 'v3', auth: authClient })
-
-    c.set('youtube', youtube)
+    c.set('youtube', google.youtube({ version: 'v3', auth: authClient }))
     await next()
   })
 
@@ -39,17 +38,22 @@ export default new Hono<YouTubeEnv>()
     const youtube = c.get('youtube')
 
     const items: youtube_v3.Schema$Playlist[] = []
-    let pageToken: string | undefined
-    do {
-      const { data } = await youtube.playlists.list({
-        mine: true,
-        part: ['id', 'contentDetails', 'snippet'],
-        maxResults: 50,
-        pageToken
-      })
-      items.push(...(data.items ?? []))
-      pageToken = data.nextPageToken ?? undefined
-    } while (pageToken)
+
+    try {
+      let pageToken: string | undefined
+      do {
+        const { data } = await youtube.playlists.list({
+          mine: true,
+          part: ['id', 'contentDetails', 'snippet'],
+          maxResults: 50,
+          pageToken
+        })
+        items.push(...(data.items ?? []))
+        pageToken = data.nextPageToken ?? undefined
+      } while (pageToken)
+    } catch {
+      throw Errors.upstream('Failed to fetch playlists from YouTube')
+    }
 
     const playlists = await sql.begin(async tx => {
       const playlists: Playlist[] = []

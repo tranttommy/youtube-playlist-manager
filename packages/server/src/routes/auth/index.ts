@@ -4,6 +4,7 @@ import { google } from 'googleapis'
 import { Hono } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import { config, SESSION_COOKIE } from '../../config'
+import { Errors } from '../../errors'
 import { createAuthClient } from '../../lib'
 
 export default new Hono()
@@ -23,7 +24,7 @@ export default new Hono()
 
   .get('/callback', async c => {
     const code = c.req.query('code')
-    if (!code) return c.json({ error: 'No code provided' }, 400)
+    if (!code) throw Errors.badRequest('No authorization code provided')
 
     const authClient = createAuthClient()
     const { tokens } = await authClient.getToken(code)
@@ -45,7 +46,7 @@ export default new Hono()
       RETURNING id
     `
 
-    if (!user?.id) return c.json({ error: 'Failed to create user' }, 500)
+    if (!user?.id) throw Errors.internal('Failed to create user')
 
     await sql`DELETE FROM sessions WHERE user_id = ${user.id} AND expires_at < NOW()`
 
@@ -55,7 +56,7 @@ export default new Hono()
       RETURNING id
     `
 
-    if (!session?.id) return c.json({ error: 'Failed to create session' }, 500)
+    if (!session?.id) throw Errors.internal('Failed to create session')
 
     setCookie(c, SESSION_COOKIE, session.id, {
       httpOnly: true,
