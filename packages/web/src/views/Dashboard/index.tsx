@@ -1,19 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Playlist, UserProfile } from '@ypm/shared'
+import { toast } from 'sonner'
+import { request } from '../../lib/request'
 import PlaylistGrid from './PlaylistGrid'
 import PlaylistGridSkeleton from './PlaylistGridSkeleton'
 
 export default function Dashboard({ user }: { user: UserProfile }) {
   const queryClient = useQueryClient()
-  const { data: playlists, isLoading } = useQuery<Playlist[]>({
+  const { data: playlists, isLoading } = useQuery({
     queryKey: ['playlists'],
-    queryFn: async () => (await fetch('/api/playlists')).json()
+    queryFn: () => request<Playlist[]>('/api/playlists')
   })
 
   const mutation = useMutation({
-    mutationFn: async () =>
-      (await fetch('/api/sync/pull', { method: 'POST' })).json(),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['playlists'] })
+    mutationFn: () =>
+      request<{ playlistsSynced: number }>('/api/sync/pull', {
+        method: 'POST'
+      }),
+    onSuccess: ({ playlistsSynced }) => {
+      queryClient.invalidateQueries({ queryKey: ['playlists'] })
+      toast.success(`Synced ${playlistsSynced} playlists`)
+    }
   })
 
   return (
