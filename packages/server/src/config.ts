@@ -6,3 +6,5 @@ export const config = {
   },
   webUrl: process.env.WEB_URL!
 }
+
+export const SESSION_COOKIE = 'session_id'

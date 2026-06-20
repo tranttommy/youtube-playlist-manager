@@ -3,10 +3,8 @@ import { sql } from 'bun'
 import { google } from 'googleapis'
 import { Hono } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
-import { config } from '../../config'
+import { config, SESSION_COOKIE } from '../../config'
 import { createAuthClient } from '../../lib'
-
-const SESSION_ID = 'session_id'
 
 export default new Hono()
   .get('/login', c => {
@@ -59,7 +57,7 @@ export default new Hono()
 
     if (!session?.id) return c.json({ error: 'Failed to create session' }, 500)
 
-    setCookie(c, SESSION_ID, session.id, {
+    setCookie(c, SESSION_COOKIE, session.id, {
       httpOnly: true,
       secure: false,
       sameSite: 'Lax',
@@ -70,7 +68,7 @@ export default new Hono()
   })
 
   .get('/me', async c => {
-    const sessionId = getCookie(c, SESSION_ID)
+    const sessionId = getCookie(c, SESSION_COOKIE)
     if (!sessionId) return c.json(null)
 
     const [user] = await sql<UserProfile[]>`
@@ -84,12 +82,12 @@ export default new Hono()
   })
 
   .get('/logout', async c => {
-    const sessionId = getCookie(c, SESSION_ID)
+    const sessionId = getCookie(c, SESSION_COOKIE)
     if (sessionId) {
       await sql`
         DELETE FROM sessions WHERE id = ${sessionId}
       `
-      deleteCookie(c, SESSION_ID, { path: '/' })
+      deleteCookie(c, SESSION_COOKIE, { path: '/' })
     }
     return c.redirect(config.webUrl)
   })
