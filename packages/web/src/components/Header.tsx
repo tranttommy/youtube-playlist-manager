@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 
 export default function Header({ user }: { user: UserProfile }) {
   return (
-    <header className="flex items-center justify-between px-8 py-5 border-b border-border">
+    <header className="sticky top-0 z-20 flex items-center justify-between px-8 py-5 border-b border-border bg-surface">
       <Link to="/" className="flex items-center gap-3">
         <Logo />
         <span className="text-sm font-bold text-text-primary tracking-tight">

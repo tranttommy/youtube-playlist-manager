@@ -1,5 +1,6 @@
 import type { Playlist } from '@ypm/shared'
 import { Link } from 'react-router'
+import NoThumbnailIcon from '../../components/NoThumbnailIcon'
 
 export default function PlaylistCard({ playlist }: { playlist: Playlist }) {
   return (
@@ -45,29 +46,5 @@ const VideoCountIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
     <title>Videos</title>
     <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z" />
-  </svg>
-)
-
-const NoThumbnailIcon = () => (
-  <svg
-    width="32"
-    height="32"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className="text-text-muted"
-  >
-    <title>No thumbnail</title>
-    <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18" />
-    <line x1="7" y1="2" x2="7" y2="22" />
-    <line x1="17" y1="2" x2="17" y2="22" />
-    <line x1="2" y1="12" x2="22" y2="12" />
-    <line x1="2" y1="7" x2="7" y2="7" />
-    <line x1="2" y1="17" x2="7" y2="17" />
-    <line x1="17" y1="7" x2="22" y2="7" />
-    <line x1="17" y1="17" x2="22" y2="17" />
   </svg>
 )
