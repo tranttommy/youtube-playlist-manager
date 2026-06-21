@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import type { UserProfile } from '@ypm/shared'
+import { Route, Routes } from 'react-router'
+import Landing from './components/Landing'
+import Loading from './components/Loading'
 import { request } from './lib/request'
-import Dashboard from './views/Dashboard'
-import Landing from './views/Landing'
-import Loading from './views/Loading'
+import Layout from './routes/Layout'
+import Playlists from './routes/playlists'
 
 export default function App() {
   const { data: me, isLoading } = useQuery({
@@ -11,5 +13,13 @@ export default function App() {
     queryFn: () => request<UserProfile | null>('/auth/me')
   })
 
-  return isLoading ? <Loading /> : me ? <Dashboard user={me} /> : <Landing />
+  if (isLoading) return <Loading />
+  if (!me) return <Landing />
+  return (
+    <Routes>
+      <Route element={<Layout user={me} />}>
+        <Route index element={<Playlists />} />
+      </Route>
+    </Routes>
+  )
 }

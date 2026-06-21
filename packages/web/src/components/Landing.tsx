@@ -1,6 +1,6 @@
 export default function Landing() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-svh bg-surface px-6">
+    <div className="flex-1 flex flex-col items-center justify-center px-6">
       {/* Accent line */}
       <div className="w-8 h-0.5 bg-accent rounded-full" />
 
