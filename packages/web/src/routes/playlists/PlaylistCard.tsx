@@ -1,9 +1,10 @@
 import type { Playlist } from '@ypm/shared'
+import { Link } from 'react-router'
 
 export default function PlaylistCard({ playlist }: { playlist: Playlist }) {
   return (
-    <button
-      type="button"
+    <Link
+      to={`playlist/${playlist.id}`}
       className="group flex flex-col text-left rounded-xl overflow-hidden bg-surface-raised hover:bg-surface-hover border border-border hover:border-border/80 transition-all duration-200 cursor-pointer"
     >
       {/* Thumbnail */}
@@ -36,7 +37,7 @@ export default function PlaylistCard({ playlist }: { playlist: Playlist }) {
           {playlist.item_count} {playlist.item_count === 1 ? 'video' : 'videos'}
         </span>
       </div>
-    </button>
+    </Link>
   )
 }
 

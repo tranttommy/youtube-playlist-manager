@@ -10,7 +10,7 @@ export type UserIdEnv = {
   }
 }
 
-export const withUserId = createMiddleware<UserIdEnv>(async (c, next) => {
+export const withAuth = createMiddleware<UserIdEnv>(async (c, next) => {
   const sessionId = getCookie(c, SESSION_COOKIE)
   if (!sessionId) throw Errors.unauthorized()
 

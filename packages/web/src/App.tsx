@@ -5,6 +5,7 @@ import Landing from './components/Landing'
 import Loading from './components/Loading'
 import { request } from './lib/request'
 import Layout from './routes/Layout'
+import PlaylistDetail from './routes/playlist'
 import Playlists from './routes/playlists'
 
 export default function App() {
@@ -19,6 +20,7 @@ export default function App() {
     <Routes>
       <Route element={<Layout user={me} />}>
         <Route index element={<Playlists />} />
+        <Route path="playlist/:id" element={<PlaylistDetail />} />
       </Route>
     </Routes>
   )

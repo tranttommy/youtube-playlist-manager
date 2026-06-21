@@ -1,47 +1,48 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { Playlist } from '@ypm/shared'
+import type { PlaylistItem } from '@ypm/shared'
+import { useParams } from 'react-router'
 import { toast } from 'sonner'
 import PullIcon from '../../components/PullIcon'
 import { request } from '../../lib/request'
-import PlaylistGrid from './PlaylistGrid'
-import PlaylistGridSkeleton from './PlaylistGridSkeleton'
+import VideoList from './VideoList'
+import VideoListSkeleton from './VideoListSkeleton'
 
-export default function Playlists() {
-  const queryKey = ['playlists']
+export default function PlaylistDetail() {
+  const { id } = useParams()
+  const queryKey = ['playlist-detail', id]
   const queryClient = useQueryClient()
-  const { data: playlists, isLoading } = useQuery({
+  const { data: playlistItems, isLoading } = useQuery({
     queryKey,
-    queryFn: () => request<Playlist[]>('/api/playlists')
+    queryFn: () => request<PlaylistItem[]>(`/api/playlists/${id}`)
   })
 
   const mutation = useMutation({
     mutationFn: () =>
-      request<{ playlistsSynced: number }>('/api/sync/pull', {
+      request<{ playlistItemsSynced: number }>(`/api/sync/pull/${id}`, {
         method: 'POST'
       }),
-    onSuccess: ({ playlistsSynced }) => {
+    onSuccess: ({ playlistItemsSynced }) => {
       queryClient.invalidateQueries({ queryKey })
-      toast.success(`Synced ${playlistsSynced} playlists`)
+      toast.success(`Synced ${playlistItemsSynced} playlist items`)
     }
   })
 
   return (
     <main
-      className={`flex-1 flex px-8 ${isLoading || playlists?.length ? 'items-start' : 'items-center justify-center'}`}
+      className={`flex-1 flex px-8 ${isLoading || playlistItems?.length ? 'items-start' : 'items-center justify-center'}`}
     >
       {isLoading ? (
-        <PlaylistGridSkeleton />
-      ) : playlists?.length ? (
-        <PlaylistGrid playlists={playlists} />
+        <VideoListSkeleton />
+      ) : playlistItems?.length ? (
+        <VideoList items={playlistItems} />
       ) : (
         <div className="flex flex-col items-center text-center">
-          <PlaylistIcon />
+          <VideoIcon />
           <h2 className="mt-8 text-xl font-display font-semibold text-text-primary tracking-tight">
-            No playlists yet
+            No videos synced yet
           </h2>
           <p className="mt-3 text-text-secondary text-sm max-w-sm leading-relaxed">
-            Pull your YouTube playlists to start searching, organizing, and
-            managing your videos.
+            Pull this playlist's videos to view, search, and manage them here.
           </p>
           <button
             type="button"
@@ -50,7 +51,7 @@ export default function Playlists() {
             className="mt-10 inline-flex items-center gap-2.5 bg-accent hover:bg-accent/85 text-white text-sm font-medium px-6 py-3 rounded-lg transition-colors duration-200"
           >
             <PullIcon />
-            {mutation.isPending ? 'Pulling...' : 'Pull Playlists'}
+            {mutation.isPending ? 'Pulling...' : 'Pull Videos'}
           </button>
         </div>
       )}
@@ -58,7 +59,7 @@ export default function Playlists() {
   )
 }
 
-const PlaylistIcon = () => (
+const VideoIcon = () => (
   <svg
     width="48"
     height="48"
@@ -70,11 +71,8 @@ const PlaylistIcon = () => (
     strokeLinejoin="round"
     className="text-text-muted"
   >
-    <title>Playlist Icon</title>
-    <path d="M21 15V6" />
-    <path d="M18.5 18a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
-    <path d="M12 12H3" />
-    <path d="M16 6H3" />
-    <path d="M12 18H3" />
+    <title>Video Icon</title>
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <path d="m10 8 6 4-6 4Z" />
   </svg>
 )

@@ -1,14 +1,15 @@
 import type { UserProfile } from '@ypm/shared'
+import { Link } from 'react-router'
 
 export default function Header({ user }: { user: UserProfile }) {
   return (
     <header className="flex items-center justify-between px-8 py-5 border-b border-border">
-      <div className="flex items-center gap-3">
+      <Link to="/" className="flex items-center gap-3">
         <Logo />
         <span className="text-sm font-bold text-text-primary tracking-tight">
           YouTube Playlist Manager
         </span>
-      </div>
+      </Link>
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-3">
           {user.picture && (

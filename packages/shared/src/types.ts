@@ -12,3 +12,10 @@ export interface Playlist {
   item_count: number
   published_at: string
 }
+
+export interface PlaylistItem {
+  id: string
+  title: string
+  thumbnail: string | null
+  channel_title: string | null
+}
