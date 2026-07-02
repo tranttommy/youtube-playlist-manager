@@ -1,7 +1,7 @@
 import type { PlaylistItem } from '@ypm/shared'
 import VideoRow from './VideoRow'
 
-export default function VideoList({ items }: { items: PlaylistItem[] }) {
+export default function VideoList({ videos }: { videos: PlaylistItem[] }) {
   return (
     <div>
       <div className="flex items-baseline justify-between mb-6">
@@ -9,12 +9,12 @@ export default function VideoList({ items }: { items: PlaylistItem[] }) {
           Videos
         </h2>
         <span className="text-xs text-text-muted">
-          {items.length} {items.length === 1 ? 'video' : 'videos'}
+          {videos.length} {videos.length === 1 ? 'video' : 'videos'}
         </span>
       </div>
       <div className="flex flex-col gap-2">
-        {items.map(item => (
-          <VideoRow key={item.id} item={item} />
+        {videos.map(video => (
+          <VideoRow key={video.id} video={video} />
         ))}
       </div>
     </div>

@@ -14,11 +14,11 @@ export default new Hono<UserIdEnv>()
     return c.json(playlists)
   })
 
-  .get(':id', async c => {
+  .get(':id/items', async c => {
     const userId = c.get('userId')
     const playlistId = c.req.param('id')
     const playlistItems = await sql<PlaylistItem[]>`
-      SELECT pi.id, pi.title, pi.thumbnail, c.title AS channel_title
+      SELECT pi.id, pi.title, pi.thumbnail, c.title AS channel_title, c.id AS channel_id
       FROM playlist_items pi
       LEFT JOIN channels c ON pi.channel_id = c.id
       JOIN playlists pl ON pl.id = pi.playlist_id

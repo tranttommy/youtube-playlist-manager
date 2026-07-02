@@ -9,7 +9,7 @@ import PlaylistGridSkeleton from './PlaylistGridSkeleton'
 export default function Playlists() {
   const queryKey = ['playlists']
   const queryClient = useQueryClient()
-  const { data: playlists, isLoading } = useQuery({
+  const { data: playlists = [], isLoading } = useQuery({
     queryKey,
     queryFn: () => request<Playlist[]>('/api/playlists')
   })
@@ -27,11 +27,11 @@ export default function Playlists() {
 
   return (
     <main
-      className={`flex-1 flex px-8 ${isLoading || playlists?.length ? 'items-start' : 'items-center justify-center'}`}
+      className={`flex-1 flex px-8 ${isLoading || playlists.length ? 'items-start' : 'items-center justify-center'}`}
     >
       {isLoading ? (
         <PlaylistGridSkeleton />
-      ) : playlists?.length ? (
+      ) : playlists.length ? (
         <PlaylistGrid playlists={playlists} />
       ) : (
         <div className="flex flex-col items-center text-center">

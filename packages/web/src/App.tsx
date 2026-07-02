@@ -9,7 +9,7 @@ import PlaylistDetail from './routes/playlist'
 import Playlists from './routes/playlists'
 
 export default function App() {
-  const { data: me, isLoading } = useQuery({
+  const { data: me = null, isLoading } = useQuery({
     queryKey: ['me'],
     queryFn: () => request<UserProfile | null>('/auth/me')
   })

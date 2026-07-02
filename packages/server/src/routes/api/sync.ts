@@ -28,6 +28,17 @@ export default new Hono<YouTubeEnv>()
 
     const authClient = createAuthClient()
     authClient.setCredentials(tokens)
+    authClient.on('tokens', async t => {
+      if (t.access_token) {
+        await sql`
+          UPDATE users
+          SET access_token = ${t.access_token},
+              updated_at = NOW()
+          WHERE id = ${userId}
+        `
+      }
+    })
+
     c.set('youtube', google.youtube({ version: 'v3', auth: authClient }))
     await next()
   })

@@ -1,9 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Playlist, PlaylistItem } from '@ypm/shared'
+import { useMemo, useState } from 'react'
 import { useParams } from 'react-router'
 import { toast } from 'sonner'
 import PullIcon from '../../components/PullIcon'
+import { NO_CHANNEL } from '../../lib/constants'
 import { request } from '../../lib/request'
+import ChannelFilter from './ChannelFilter'
 import PlaylistSidebar from './PlaylistSidebar'
 import PlaylistSidebarSkeleton from './PlaylistSidebarSkeleton'
 import VideoList from './VideoList'
@@ -15,16 +18,16 @@ export default function PlaylistDetail() {
   const queryKey = ['playlist-detail', id]
 
   // playlist metadata — read from the playlists cache
-  const { data: playlists } = useQuery({
+  const { data: playlists = [] } = useQuery({
     queryKey: ['playlists'],
     queryFn: () => request<Playlist[]>('/api/playlists')
   })
-  const playlist = playlists?.find(p => p.id === id)
+  const playlist = playlists.find(playlist => playlist.id === id)
 
   // the items
-  const { data: playlistItems, isLoading } = useQuery({
+  const { data: videos = [], isLoading } = useQuery({
     queryKey,
-    queryFn: () => request<PlaylistItem[]>(`/api/playlists/${id}`)
+    queryFn: () => request<PlaylistItem[]>(`/api/playlists/${id}/items`)
   })
 
   const mutation = useMutation({
@@ -38,17 +41,34 @@ export default function PlaylistDetail() {
     }
   })
 
+  const [channelFilter, setChannelFilter] = useState<string>('')
+
+  // the filtered view handed to VideoList
+  const filteredVideos = useMemo(() => {
+    if (!channelFilter) return videos
+    if (channelFilter === NO_CHANNEL)
+      return videos.filter(video => !video.channel_id)
+    return videos.filter(video => video.channel_id === channelFilter)
+  }, [videos, channelFilter])
+
   return (
     <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row gap-8">
       {/* Sidebar */}
       <aside className="md:w-80 shrink-0">
-        <div className="md:sticky md:top-24">
+        <div className="md:sticky md:top-24 flex flex-col gap-6">
           {playlist ? (
-            <PlaylistSidebar
-              playlist={playlist}
-              onSync={() => mutation.mutate()}
-              isSyncing={mutation.isPending}
-            />
+            <>
+              <PlaylistSidebar
+                playlist={playlist}
+                onSync={() => mutation.mutate()}
+                isSyncing={mutation.isPending}
+              />
+              <ChannelFilter
+                videos={videos}
+                value={channelFilter}
+                onChange={setChannelFilter}
+              />
+            </>
           ) : (
             <PlaylistSidebarSkeleton />
           )}
@@ -59,8 +79,8 @@ export default function PlaylistDetail() {
       <div className="flex-1 min-w-0">
         {isLoading ? (
           <VideoListSkeleton />
-        ) : playlistItems?.length ? (
-          <VideoList items={playlistItems} />
+        ) : videos.length ? (
+          <VideoList videos={filteredVideos} />
         ) : (
           <div className="flex flex-col items-center text-center pt-12">
             <VideoIcon />
