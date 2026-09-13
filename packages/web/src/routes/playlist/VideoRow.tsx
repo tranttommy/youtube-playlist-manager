@@ -1,9 +1,36 @@
 import type { PlaylistItem } from '@ypm/shared'
+import Checkbox from '../../components/Checkbox'
 import NoThumbnailIcon from '../../components/NoThumbnailIcon'
 
-export default function VideoRow({ video }: { video: PlaylistItem }) {
+export default function VideoRow({
+  video,
+  isSelected,
+  onToggle
+}: {
+  video: PlaylistItem
+  isSelected: boolean
+  onToggle: () => void
+}) {
   return (
-    <div className="group flex items-center gap-4 rounded-lg p-2 bg-surface-raised hover:bg-surface-hover border border-border hover:border-border/80 transition-all duration-200">
+    // biome-ignore lint/a11y/noStaticElementInteractions: keyboard access comes from the inner checkbox
+    // biome-ignore lint/a11y/useKeyWithClickEvents: the inner checkbox handles keyboard toggling
+    <div
+      className={`group flex items-center gap-4 rounded-lg p-2 border transition-all duration-200 ${
+        isSelected
+          ? 'bg-accent-soft border-accent/50'
+          : 'bg-surface-raised hover:bg-surface-hover border-border hover:border-border/80'
+      }`}
+      onClick={onToggle}
+    >
+      {/* Checkbox */}
+      <div className="pl-1">
+        <Checkbox
+          checked={isSelected}
+          onChange={onToggle}
+          label={`Select ${video.title}`}
+        />
+      </div>
+
       {/* Thumbnail */}
       <div className="relative shrink-0 w-40 aspect-video rounded-md overflow-hidden bg-surface">
         {video.thumbnail ? (

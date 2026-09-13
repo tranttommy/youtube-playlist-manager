@@ -65,6 +65,13 @@ export default function PlaylistDetail() {
     return videos.filter(video => video.channel_id === channelFilter)
   }, [videos, channelFilter])
 
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  const handleChannelFilterChange = (channel: string) => {
+    setChannelFilter(channel)
+    setSelectedIds(new Set())
+  }
+
   return (
     <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row gap-8">
       {/* Sidebar */}
@@ -80,7 +87,7 @@ export default function PlaylistDetail() {
               <ChannelFilter
                 videos={videos}
                 value={channelFilter}
-                onChange={setChannelFilter}
+                onChange={handleChannelFilterChange}
               />
             </>
           ) : (
@@ -94,7 +101,11 @@ export default function PlaylistDetail() {
         {isLoading ? (
           <VideoListSkeleton />
         ) : videos.length ? (
-          <VideoList videos={filteredVideos} />
+          <VideoList
+            videos={filteredVideos}
+            selectedIds={selectedIds}
+            setSelectedIds={setSelectedIds}
+          />
         ) : (
           <div className="flex flex-col items-center text-center pt-12">
             <VideoIcon />
