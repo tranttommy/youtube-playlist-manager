@@ -3,9 +3,10 @@ import type { Playlist, PlaylistItem } from '@ypm/shared'
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router'
 import { toast } from 'sonner'
+import ProgressBar from '../../components/ProgressBar'
 import PullIcon from '../../components/PullIcon'
 import { NO_CHANNEL } from '../../lib/constants'
-import { request } from '../../lib/request'
+import { request, streamSync } from '../../lib/request'
 import ChannelFilter from './ChannelFilter'
 import PlaylistSidebar from './PlaylistSidebar'
 import PlaylistSidebarSkeleton from './PlaylistSidebarSkeleton'
@@ -30,14 +31,27 @@ export default function PlaylistDetail() {
     queryFn: () => request<PlaylistItem[]>(`/api/playlists/${id}/items`)
   })
 
+  const [progress, setProgress] = useState<{
+    processed: number
+    total: number
+  } | null>(null)
+
   const mutation = useMutation({
     mutationFn: () =>
-      request<{ playlistItemsSynced: number }>(`/api/sync/pull/${id}`, {
-        method: 'POST'
+      streamSync(`/api/sync/pull/${id}`, event => {
+        if (event.event === 'progress') {
+          setProgress(event.data)
+        } else if (event.event === 'error') {
+          throw new Error(event.data.message)
+        }
+        // 'done' — nothing to do here; resolution happens when the stream closes
       }),
-    onSuccess: ({ playlistItemsSynced }) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey })
-      toast.success(`Synced ${playlistItemsSynced} playlist items`)
+      toast.success('Playlist synced')
+    },
+    onSettled: () => {
+      setProgress(null) // clear the bar whether it succeeded or failed
     }
   })
 
@@ -90,15 +104,23 @@ export default function PlaylistDetail() {
             <p className="mt-3 text-text-secondary text-sm max-w-sm leading-relaxed">
               Pull this playlist's videos to view, search, and manage them here.
             </p>
-            <button
-              type="button"
-              onClick={() => mutation.mutate()}
-              disabled={mutation.isPending}
-              className="mt-10 inline-flex items-center gap-2.5 bg-accent hover:bg-accent/85 text-white text-sm font-medium px-6 py-3 rounded-lg transition-colors duration-200"
-            >
-              <PullIcon />
-              {mutation.isPending ? 'Pulling...' : 'Pull Videos'}
-            </button>
+            {mutation.isPending && progress ? (
+              <ProgressBar
+                processed={progress.processed}
+                total={progress.total}
+                label="Syncing videos"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => mutation.mutate()}
+                disabled={mutation.isPending}
+                className="mt-10 inline-flex items-center gap-2.5 bg-accent hover:bg-accent/85 text-white text-sm font-medium px-6 py-3 rounded-lg transition-colors duration-200"
+              >
+                <PullIcon />
+                {mutation.isPending ? 'Pulling...' : 'Pull Videos'}
+              </button>
+            )}
           </div>
         )}
       </div>

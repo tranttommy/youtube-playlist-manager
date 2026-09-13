@@ -2,6 +2,7 @@ import { sql } from 'bun'
 import type { youtube_v3 } from 'googleapis'
 import { google } from 'googleapis'
 import { Hono } from 'hono'
+import { streamSSE } from 'hono/streaming'
 import { Errors } from '../../errors'
 import { createAuthClient } from '../../lib'
 import type { UserIdEnv } from './middleware'
@@ -91,69 +92,85 @@ export default new Hono<YouTubeEnv>()
     const userId = c.get('userId')
     const youtube = c.get('youtube')
 
-    const [playlist] = await sql<{ youtube_id: string }[]>`
-      SELECT youtube_id
+    const [playlist] = await sql<{ youtube_id: string; item_count: number }[]>`
+      SELECT youtube_id, item_count
       FROM playlists
       WHERE id = ${playlistId} AND user_id = ${userId}
     `
     if (!playlist) throw Errors.notFound()
 
-    const items: youtube_v3.Schema$PlaylistItem[] = []
-
-    try {
-      let pageToken: string | undefined
-      do {
-        const { data } = await youtube.playlistItems.list({
-          playlistId: playlist.youtube_id,
-          part: ['id', 'snippet'],
-          maxResults: 50,
-          pageToken
-        })
-        items.push(...(data.items ?? []))
-        pageToken = data.nextPageToken ?? undefined
-      } while (pageToken)
-    } catch (e) {
-      console.error(e)
-      throw Errors.upstream('Failed to fetch playlist items from YouTube')
-    }
-
-    const playlistItems = await sql.begin(async tx => {
+    return streamSSE(c, async stream => {
       const channelIds = new Map<string, string>()
-      const playlistItems: { id: string }[] = []
-      for (const item of items) {
-        const ytChannelId = item.snippet?.videoOwnerChannelId
-        let channelId: string | null = null
+      let processed = 0
+      const total = playlist.item_count
 
-        if (ytChannelId) {
-          channelId = channelIds.get(ytChannelId) ?? null
-          if (!channelId) {
-            const [channel] = await tx<{ id: string }[]>`
-              INSERT INTO channels (youtube_id, title)
-              VALUES (${ytChannelId}, ${item.snippet?.videoOwnerChannelTitle})
-              ON CONFLICT (youtube_id) DO UPDATE SET
-                title = EXCLUDED.title
-              RETURNING id
-            `
-            if (channel) {
-              channelIds.set(ytChannelId, channel.id)
-              channelId = channel.id
+      try {
+        let pageToken: string | undefined
+        do {
+          // Fetch one page from YouTube
+          const { data } = await youtube.playlistItems.list({
+            playlistId: playlist.youtube_id,
+            part: ['id', 'snippet'],
+            maxResults: 50,
+            pageToken
+          })
+          const items = data.items ?? []
+
+          // Upsert this page (one transaction per page)
+          await sql.begin(async tx => {
+            for (const item of items) {
+              const ytChannelId = item.snippet?.videoOwnerChannelId
+              let channelId: string | null = null
+
+              if (ytChannelId) {
+                channelId = channelIds.get(ytChannelId) ?? null
+                if (!channelId) {
+                  const [channel] = await tx<{ id: string }[]>`
+                    INSERT INTO channels (youtube_id, title)
+                    VALUES (${ytChannelId}, ${item.snippet?.videoOwnerChannelTitle})
+                    ON CONFLICT (youtube_id) DO UPDATE SET
+                      title = EXCLUDED.title
+                    RETURNING id
+                  `
+                  if (channel) {
+                    channelIds.set(ytChannelId, channel.id)
+                    channelId = channel.id
+                  }
+                }
+              }
+
+              await tx`
+                INSERT INTO playlist_items (youtube_id, video_youtube_id, playlist_id, channel_id, title, thumbnail, published_at)
+                VALUES (${item.id}, ${item.snippet?.resourceId?.videoId}, ${playlistId}, ${channelId}, ${item.snippet?.title}, ${item.snippet?.thumbnails?.medium?.url}, ${item.snippet?.publishedAt})
+                ON CONFLICT (youtube_id) DO UPDATE SET
+                  title = EXCLUDED.title,
+                  thumbnail = EXCLUDED.thumbnail,
+                  updated_at = NOW()
+              `
             }
-          }
-        }
+          })
 
-        const [playlistItem] = await tx<{ id: string }[]>`
-          INSERT INTO playlist_items (youtube_id, video_youtube_id, playlist_id, channel_id, title, thumbnail, published_at)
-          VALUES (${item.id}, ${item.snippet?.resourceId?.videoId}, ${playlistId}, ${channelId}, ${item.snippet?.title}, ${item.snippet?.thumbnails?.medium?.url}, ${item.snippet?.publishedAt})
-          ON CONFLICT (youtube_id) DO UPDATE SET
-            title = EXCLUDED.title,
-            thumbnail = EXCLUDED.thumbnail,
-            updated_at = NOW()
-          RETURNING id
-        `
-        if (playlistItem) playlistItems.push(playlistItem)
+          // Emit progress for this page
+          processed += items.length
+          await stream.writeSSE({
+            event: 'progress',
+            data: JSON.stringify({ processed, total })
+          })
+
+          pageToken = data.nextPageToken ?? undefined
+        } while (pageToken)
+
+        await stream.writeSSE({
+          event: 'done',
+          data: JSON.stringify({ playlistItemsSynced: processed })
+        })
+      } catch (e) {
+        // Failure becomes an event, not a status code
+        console.error(e)
+        await stream.writeSSE({
+          event: 'error',
+          data: JSON.stringify({ message: 'Failed to sync playlist items' })
+        })
       }
-      return playlistItems
     })
-
-    return c.json({ playlistItemsSynced: playlistItems.length })
   })
