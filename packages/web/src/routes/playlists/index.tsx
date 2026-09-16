@@ -16,7 +16,7 @@ export default function Playlists() {
 
   const mutation = useMutation({
     mutationFn: () =>
-      request<{ playlistsSynced: number }>('/api/sync/pull', {
+      request<{ playlistsSynced: number }>('/api/youtube/pull', {
         method: 'POST'
       }),
     onSuccess: ({ playlistsSynced }) => {

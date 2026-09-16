@@ -36,9 +36,9 @@ export default function PlaylistDetail() {
     total: number
   } | null>(null)
 
-  const mutation = useMutation({
+  const syncMutation = useMutation({
     mutationFn: () =>
-      streamSync(`/api/sync/pull/${id}`, event => {
+      streamSync(`/api/youtube/pull/${id}`, event => {
         if (event.event === 'progress') {
           setProgress(event.data)
         } else if (event.event === 'error') {
@@ -50,27 +50,21 @@ export default function PlaylistDetail() {
       queryClient.invalidateQueries({ queryKey })
       toast.success('Playlist synced')
     },
-    onSettled: () => {
-      setProgress(null) // clear the bar whether it succeeded or failed
-    }
+    onSettled: () => setProgress(null) // clear the bar whether it succeeded or failed
   })
 
   const [channelFilter, setChannelFilter] = useState<string>('')
 
   // the filtered view handed to VideoList
-  const filteredVideos = useMemo(() => {
-    if (!channelFilter) return videos
-    if (channelFilter === NO_CHANNEL)
-      return videos.filter(video => !video.channel_id)
-    return videos.filter(video => video.channel_id === channelFilter)
-  }, [videos, channelFilter])
-
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-
-  const handleChannelFilterChange = (channel: string) => {
-    setChannelFilter(channel)
-    setSelectedIds(new Set())
-  }
+  const filteredVideos = useMemo(
+    () =>
+      !channelFilter
+        ? videos
+        : channelFilter === NO_CHANNEL
+          ? videos.filter(video => !video.channel_id)
+          : videos.filter(video => video.channel_id === channelFilter),
+    [videos, channelFilter]
+  )
 
   return (
     <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row gap-8">
@@ -81,13 +75,13 @@ export default function PlaylistDetail() {
             <>
               <PlaylistSidebar
                 playlist={playlist}
-                onSync={() => mutation.mutate()}
-                isSyncing={mutation.isPending}
+                onSync={() => syncMutation.mutate()}
+                isSyncing={syncMutation.isPending}
               />
               <ChannelFilter
                 videos={videos}
                 value={channelFilter}
-                onChange={handleChannelFilterChange}
+                onChange={channel => setChannelFilter(channel)}
               />
             </>
           ) : (
@@ -102,9 +96,9 @@ export default function PlaylistDetail() {
           <VideoListSkeleton />
         ) : videos.length ? (
           <VideoList
+            key={channelFilter}
             videos={filteredVideos}
-            selectedIds={selectedIds}
-            setSelectedIds={setSelectedIds}
+            playlists={playlists.filter(p => p.id !== playlist?.id)} // remove current playlist from options
           />
         ) : (
           <div className="flex flex-col items-center text-center pt-12">
@@ -115,7 +109,7 @@ export default function PlaylistDetail() {
             <p className="mt-3 text-text-secondary text-sm max-w-sm leading-relaxed">
               Pull this playlist's videos to view, search, and manage them here.
             </p>
-            {mutation.isPending && progress ? (
+            {syncMutation.isPending && progress ? (
               <ProgressBar
                 processed={progress.processed}
                 total={progress.total}
@@ -124,12 +118,12 @@ export default function PlaylistDetail() {
             ) : (
               <button
                 type="button"
-                onClick={() => mutation.mutate()}
-                disabled={mutation.isPending}
+                onClick={() => syncMutation.mutate()}
+                disabled={syncMutation.isPending}
                 className="mt-10 inline-flex items-center gap-2.5 bg-accent hover:bg-accent/85 text-white text-sm font-medium px-6 py-3 rounded-lg transition-colors duration-200"
               >
                 <PullIcon />
-                {mutation.isPending ? 'Pulling...' : 'Pull Videos'}
+                {syncMutation.isPending ? 'Pulling...' : 'Pull Videos'}
               </button>
             )}
           </div>

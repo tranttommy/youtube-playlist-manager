@@ -174,3 +174,22 @@ export default new Hono<YouTubeEnv>()
       }
     })
   })
+
+  .post('/delete', async c => {
+    const selectedIds = await c.req.json<string[]>()
+    const userId = c.get('userId')
+    for (const selectedId of selectedIds) {
+      console.log({ selectedId })
+    }
+    // await sql.begin(async tx => {
+    //   for (const selectedId of selectedIds) {
+    //     await tx`
+    //       DELETE FROM playlist_items pi
+    //       USING playlists pl
+    //       WHERE pi.playlist_id = ${''}
+    //         AND pl.user_id = ${userId}
+    //     `
+    //   }
+    // })
+    return c.json({ deleted: selectedIds.length })
+  })

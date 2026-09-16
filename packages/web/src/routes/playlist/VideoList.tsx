@@ -1,34 +1,50 @@
-import type { PlaylistItem } from '@ypm/shared'
+import { useMutation } from '@tanstack/react-query'
+import type { Playlist, PlaylistItem } from '@ypm/shared'
+import { useState } from 'react'
+import { toast } from 'sonner'
 import Checkbox from '../../components/Checkbox'
+import { request } from '../../lib/request'
 import VideoRow from './VideoRow'
 
 export default function VideoList({
   videos,
-  selectedIds,
-  setSelectedIds
+  playlists
 }: {
   videos: PlaylistItem[]
-  selectedIds: Set<string>
-  setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>
+  playlists: Playlist[]
 }) {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
   const selectedCount = selectedIds.size
   const isAllSelected = videos.length > 0 && selectedCount === videos.length
 
-  const onToggle = (videoId: string) =>
+  const handleToggle = (videoId: string) =>
     setSelectedIds(prev => {
       const next = new Set(prev)
       next.has(videoId) ? next.delete(videoId) : next.add(videoId)
       return next
     })
 
-  const onClear = () => setSelectedIds(new Set())
+  const handleSelectAllToggle = () =>
+    !isAllSelected
+      ? setSelectedIds(new Set(videos.map(v => v.id))) // select all
+      : setSelectedIds(new Set()) // unselect all
 
-  const onSelectAllToggle = () =>
-    !isAllSelected ? setSelectedIds(new Set(videos.map(v => v.id))) : onClear()
+  const [targetPlaylist, setTargetPlaylist] = useState('')
 
-  return (
-    <div>
-      {/* Title row */}
+  const deleteMutation = useMutation({
+    mutationFn: () =>
+      request<{ deleted: number }>(`/api/youtube/delete`, {
+        method: 'POST',
+        body: JSON.stringify([...selectedIds])
+      }),
+    onSuccess: ({ deleted }) => toast.success(`Deleted ${deleted} videos`)
+  })
+
+  const onMove = (target: string) => console.log({ target })
+
+  function VideoListHeader() {
+    return (
       <div className="flex items-baseline justify-between gap-4 mb-3">
         <h2 className="text-lg font-display font-semibold text-text-primary tracking-tight">
           Videos
@@ -37,44 +53,71 @@ export default function VideoList({
           {videos.length} {videos.length === 1 ? 'video' : 'videos'}
         </span>
       </div>
+    )
+  }
 
-      {/* Selection toolbar */}
+  function SelectionToolbar() {
+    return (
       <div className="flex items-center gap-3 mb-6 pb-3 border-b border-border">
-        <div className="pl-1 flex items-center">
-          <Checkbox
-            checked={isAllSelected}
-            onChange={onSelectAllToggle}
-            label="Select all videos"
-          >
-            Select all
-          </Checkbox>
-        </div>
-
+        <Checkbox
+          checked={isAllSelected}
+          onChange={handleSelectAllToggle}
+          label="Select all videos"
+        >
+          <span className="text-xs text-text-secondary">Select all</span>
+        </Checkbox>
         <div
-          className={`flex items-center gap-3 ml-auto ${
+          className={`flex items-center gap-2 ml-auto ${
             selectedCount > 0 ? '' : 'invisible'
           }`}
         >
-          <span className="text-xs text-accent font-medium">
+          <span className="text-xs text-accent font-medium mr-1">
             {selectedCount} selected
           </span>
+          <select
+            value={targetPlaylist}
+            onChange={e => setTargetPlaylist(e.target.value)}
+            aria-label="Move to playlist"
+            className="bg-surface-raised border border-border rounded-md px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-text-muted cursor-pointer max-w-40"
+          >
+            <option value="">Move to...</option>
+            {playlists.map(p => (
+              <option key={p.id} value={p.id}>
+                {p.title}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
-            onClick={onClear}
-            className="text-xs text-text-secondary hover:text-text-primary border border-border hover:border-text-muted rounded-md px-2.5 py-1.5 transition-colors duration-200"
+            disabled={!targetPlaylist}
+            onClick={() => onMove(targetPlaylist)}
+            className="text-xs text-text-secondary hover:text-text-primary border border-border hover:border-text-muted rounded-md px-2.5 py-1.5 transition-colors duration-200 disabled:opacity-40 disabled:hover:text-text-secondary disabled:hover:border-border"
           >
-            Clear
+            Move
+          </button>
+          <button
+            type="button"
+            onClick={() => deleteMutation.mutate()}
+            className="text-xs text-accent hover:text-white hover:bg-accent border border-accent/50 hover:border-accent rounded-md px-2.5 py-1.5 transition-colors duration-200"
+          >
+            Delete
           </button>
         </div>
       </div>
+    )
+  }
 
+  return (
+    <div>
+      <VideoListHeader />
+      <SelectionToolbar />
       <div className="flex flex-col gap-2">
         {videos.map(video => (
           <VideoRow
             key={video.id}
             video={video}
             isSelected={selectedIds.has(video.id)}
-            onToggle={() => onToggle(video.id)}
+            onToggle={() => handleToggle(video.id)}
           />
         ))}
       </div>
