@@ -12,12 +12,15 @@ export default function VideoRow({
   onToggle: () => void
 }) {
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: to make the whole component clickable for UX
+    // biome-ignore lint/a11y/useKeyWithClickEvents: to make the whole component clickable for UX
     <div
       className={`group flex items-center gap-4 rounded-lg p-2 border transition-all duration-200 ${
         isSelected
           ? 'bg-accent-soft border-accent/50'
           : 'bg-surface-raised hover:bg-surface-hover border-border hover:border-border/80'
       }`}
+      onClick={onToggle}
     >
       {/* Checkbox */}
       <Checkbox

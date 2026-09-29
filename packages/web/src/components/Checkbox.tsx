@@ -11,7 +11,7 @@ export default function Checkbox({
   children?: React.ReactNode
 }) {
   return (
-    <label className="shrink-0 inline-flex items-center gap-3 cursor-pointer">
+    <label className="min-w-0 inline-flex items-center gap-3 cursor-pointer">
       <input
         type="checkbox"
         checked={checked}
@@ -20,7 +20,7 @@ export default function Checkbox({
         className="peer sr-only"
       />
       <span
-        className={`flex items-center justify-center w-5 h-5 rounded border transition-colors duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-accent/60 ${
+        className={`shrink-0 flex items-center justify-center w-5 h-5 rounded border transition-colors duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-accent/60 ${
           checked
             ? 'bg-accent border-accent text-white'
             : 'bg-surface border-border hover:border-text-muted'
