@@ -1,49 +1,12 @@
 import { sql } from 'bun'
 import type { youtube_v3 } from 'googleapis'
-import { google } from 'googleapis'
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { Errors } from '../../errors'
-import { createAuthClient } from '../../lib'
-import type { UserIdEnv } from './middleware'
+import { type UserIdEnv, withYouTube, type YouTubeEnv } from './middleware'
 
-type YouTubeEnv = UserIdEnv & {
-  Variables: UserIdEnv['Variables'] & {
-    youtube: ReturnType<typeof google.youtube>
-  }
-}
-
-export default new Hono<YouTubeEnv>()
-  .use(async (c, next) => {
-    const userId = c.get('userId')
-
-    const [tokens] = await sql<
-      { access_token: string; refresh_token: string }[]
-    >`
-      SELECT access_token, refresh_token
-      FROM users
-      WHERE id = ${userId}
-    `
-    if (!tokens)
-      throw Errors.unauthorized('YouTube connection lost, please sign in again')
-
-    const authClient = createAuthClient()
-    authClient.setCredentials(tokens)
-    authClient.on('tokens', async t => {
-      if (t.access_token) {
-        await sql`
-          UPDATE users
-          SET access_token = ${t.access_token},
-              updated_at = NOW()
-          WHERE id = ${userId}
-        `
-      }
-    })
-
-    c.set('youtube', google.youtube({ version: 'v3', auth: authClient }))
-    await next()
-  })
-
+export default new Hono<UserIdEnv & YouTubeEnv>()
+  .use(withYouTube)
   .post('/pull', async c => {
     const userId = c.get('userId')
     const youtube = c.get('youtube')
@@ -175,21 +138,31 @@ export default new Hono<YouTubeEnv>()
     })
   })
 
-  .post('/delete', async c => {
-    const selectedIds = await c.req.json<string[]>()
+  .post('/delete/:id', async c => {
+    const playlistId = c.req.param('id')
     const userId = c.get('userId')
-    for (const selectedId of selectedIds) {
-      console.log({ selectedId })
+    const youtube = c.get('youtube')
+
+    const selectedIds = await c.req.json<string[]>()
+
+    // Get youtube_id
+    const items = await sql<{ id: string; youtube_id: string }[]>`
+      SELECT pi.id, pi.youtube_id
+      FROM playlist_items pi
+      JOIN playlists pl ON pl.id = pi.playlist_id
+      WHERE pi.id = ANY(${sql.array(selectedIds, 'TEXT')}::uuid[])
+        AND pi.playlist_id = ${playlistId}
+        AND pl.user_id = ${userId}
+    `
+
+    const deletedIds: string[] = []
+    for (const item of items) {
+      await youtube.playlistItems.delete({ id: item.youtube_id })
+      deletedIds.push(item.id)
     }
-    // await sql.begin(async tx => {
-    //   for (const selectedId of selectedIds) {
-    //     await tx`
-    //       DELETE FROM playlist_items pi
-    //       USING playlists pl
-    //       WHERE pi.playlist_id = ${''}
-    //         AND pl.user_id = ${userId}
-    //     `
-    //   }
-    // })
-    return c.json({ deleted: selectedIds.length })
+
+    // Delete from database
+    await sql`DELETE FROM playlist_items WHERE id = ANY(${sql.array(deletedIds, 'TEXT')}::uuid[])`
+
+    return c.json({ deleted: deletedIds.length })
   })

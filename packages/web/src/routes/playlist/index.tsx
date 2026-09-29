@@ -98,7 +98,9 @@ export default function PlaylistDetail() {
           <VideoList
             key={channelFilter}
             videos={filteredVideos}
+            playlistId={id}
             playlists={playlists.filter(p => p.id !== playlist?.id)} // remove current playlist from options
+            queryKey={queryKey}
           />
         ) : (
           <div className="flex flex-col items-center text-center pt-12">

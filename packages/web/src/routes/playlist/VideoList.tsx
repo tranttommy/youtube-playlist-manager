@@ -1,4 +1,4 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Playlist, PlaylistItem } from '@ypm/shared'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -8,11 +8,16 @@ import VideoRow from './VideoRow'
 
 export default function VideoList({
   videos,
-  playlists
+  playlistId,
+  playlists,
+  queryKey
 }: {
   videos: PlaylistItem[]
+  playlistId?: string
   playlists: Playlist[]
+  queryKey: (string | undefined)[]
 }) {
+  const queryClient = useQueryClient()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const selectedCount = selectedIds.size
@@ -34,17 +39,22 @@ export default function VideoList({
 
   const deleteMutation = useMutation({
     mutationFn: () =>
-      request<{ deleted: number }>(`/api/youtube/delete`, {
+      request<{ deleted: number }>(`/api/youtube/delete/${playlistId}`, {
         method: 'POST',
         body: JSON.stringify([...selectedIds])
       }),
-    onSuccess: ({ deleted }) => toast.success(`Deleted ${deleted} videos`)
+    onSuccess: ({ deleted }) => {
+      setSelectedIds(new Set())
+      queryClient.invalidateQueries({ queryKey })
+      toast.success(`Deleted ${deleted} videos`)
+    }
   })
 
   const onMove = (target: string) => console.log({ target })
 
-  function VideoListHeader() {
-    return (
+  return (
+    <div>
+      {/* Subheader */}
       <div className="flex items-baseline justify-between gap-4 mb-3">
         <h2 className="text-lg font-display font-semibold text-text-primary tracking-tight">
           Videos
@@ -53,11 +63,8 @@ export default function VideoList({
           {videos.length} {videos.length === 1 ? 'video' : 'videos'}
         </span>
       </div>
-    )
-  }
 
-  function SelectionToolbar() {
-    return (
+      {/* Selection Toolbar */}
       <div className="flex items-center gap-3 mb-6 pb-3 border-b border-border">
         <Checkbox
           checked={isAllSelected}
@@ -104,13 +111,8 @@ export default function VideoList({
           </button>
         </div>
       </div>
-    )
-  }
 
-  return (
-    <div>
-      <VideoListHeader />
-      <SelectionToolbar />
+      {/* Video List */}
       <div className="flex flex-col gap-2">
         {videos.map(video => (
           <VideoRow
