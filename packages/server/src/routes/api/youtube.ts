@@ -11,7 +11,7 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
     const userId = c.get('userId')
     const youtube = c.get('youtube')
 
-    const items: youtube_v3.Schema$Playlist[] = []
+    const ytPlaylists: youtube_v3.Schema$Playlist[] = []
 
     try {
       let pageToken: string | undefined
@@ -22,7 +22,7 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
           maxResults: 50,
           pageToken
         })
-        items.push(...(data.items ?? []))
+        ytPlaylists.push(...(data.items ?? []))
         pageToken = data.nextPageToken ?? undefined
       } while (pageToken)
     } catch {
@@ -31,10 +31,10 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
 
     const playlists = await sql.begin(async tx => {
       const playlists: { id: string }[] = []
-      for (const item of items) {
+      for (const ytPlaylist of ytPlaylists) {
         const [playlist] = await tx<{ id: string }[]>`
           INSERT INTO playlists (youtube_id, user_id, title, thumbnail, item_count, published_at)
-          VALUES (${item.id}, ${userId}, ${item.snippet?.title}, ${item.snippet?.thumbnails?.medium?.url}, ${item.contentDetails?.itemCount}, ${item.snippet?.publishedAt})
+          VALUES (${ytPlaylist.id}, ${userId}, ${ytPlaylist.snippet?.title}, ${ytPlaylist.snippet?.thumbnails?.medium?.url}, ${ytPlaylist.contentDetails?.itemCount}, ${ytPlaylist.snippet?.publishedAt})
           ON CONFLICT (youtube_id) DO UPDATE SET
             title = EXCLUDED.title,
             thumbnail = EXCLUDED.thumbnail,
