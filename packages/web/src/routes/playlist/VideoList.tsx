@@ -46,6 +46,7 @@ export default function VideoList({
     onSuccess: ({ deleted }) => {
       setSelectedIds(new Set())
       queryClient.invalidateQueries({ queryKey })
+      queryClient.invalidateQueries({ queryKey: ['playlists'] })
       toast.success(`Deleted ${deleted} videos`)
     }
   })

@@ -161,8 +161,16 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
       deletedIds.push(item.id)
     }
 
-    // Delete from database
-    await sql`DELETE FROM playlist_items WHERE id = ANY(${sql.array(deletedIds, 'TEXT')}::uuid[])`
+    // Delete from database and update playlist count
+    await sql.begin(async tx => {
+      await tx`DELETE FROM playlist_items WHERE id = ANY(${sql.array(deletedIds, 'TEXT')}::uuid[])`
+      await tx`
+        UPDATE playlists
+        SET item_count = GREATEST(0, item_count - ${deletedIds.length}),
+            updated_at = NOW()
+        WHERE id = ${playlistId}
+      `
+    })
 
     return c.json({ deleted: deletedIds.length })
   })
