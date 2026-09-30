@@ -156,21 +156,42 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
     `
 
     const deletedIds: string[] = []
+    let isQuotaHit = false
     for (const item of items) {
-      await youtube.playlistItems.delete({ id: item.youtube_id })
-      deletedIds.push(item.id)
+      try {
+        await youtube.playlistItems.delete({ id: item.youtube_id })
+        deletedIds.push(item.id)
+      } catch (e) {
+        const err = e as { status?: number; errors?: { reason?: string }[] }
+        if (err?.status === 404) {
+          deletedIds.push(item.id) // already gone on YouTube, clean up locally
+        } else if (
+          err?.status === 403
+          && err.errors?.some(x => x.reason === 'quotaExceeded')
+        ) {
+          isQuotaHit = true
+          break
+        } else {
+          console.error(`Failed to delete ${item.youtube_id}`, e)
+        }
+      }
     }
 
     // Delete from database and update playlist count
-    await sql.begin(async tx => {
-      await tx`DELETE FROM playlist_items WHERE id = ANY(${sql.array(deletedIds, 'TEXT')}::uuid[])`
-      await tx`
-        UPDATE playlists
-        SET item_count = GREATEST(0, item_count - ${deletedIds.length}),
-            updated_at = NOW()
-        WHERE id = ${playlistId}
-      `
-    })
+    if (deletedIds.length) {
+      await sql.begin(async tx => {
+        await tx`DELETE FROM playlist_items WHERE id = ANY(${sql.array(deletedIds, 'TEXT')}::uuid[])`
+        await tx`
+          UPDATE playlists
+          SET item_count = GREATEST(0, item_count - ${deletedIds.length}), updated_at = NOW()
+          WHERE id = ${playlistId}
+        `
+      })
+    }
 
-    return c.json({ deleted: deletedIds.length })
+    return c.json({
+      deleted: deletedIds.length,
+      failed: selectedIds.length - deletedIds.length,
+      isQuotaHit
+    })
   })

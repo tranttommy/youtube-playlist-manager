@@ -39,11 +39,14 @@ export default function VideoList({
 
   const deleteMutation = useMutation({
     mutationFn: () =>
-      request<{ deleted: number }>(`/api/youtube/delete/${playlistId}`, {
-        method: 'POST',
-        body: JSON.stringify([...selectedIds])
-      }),
-    onSuccess: ({ deleted }) => {
+      request<{ deleted: number; failed: number; isQuotaHit: boolean }>(
+        `/api/youtube/delete/${playlistId}`,
+        {
+          method: 'POST',
+          body: JSON.stringify([...selectedIds])
+        }
+      ),
+    onSuccess: ({ deleted, failed, isQuotaHit }) => {
       setSelectedIds(new Set())
       queryClient.invalidateQueries({ queryKey })
       queryClient.invalidateQueries({ queryKey: ['playlists'] })
