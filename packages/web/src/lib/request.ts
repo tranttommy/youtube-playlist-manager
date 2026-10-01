@@ -16,16 +16,23 @@ export async function request<T>(
 }
 
 // lib/streamSync.ts
-type SyncEvent =
+type SyncEvent<TDone> =
   | { event: 'progress'; data: { processed: number; total: number } }
-  | { event: 'done'; data: { playlistItemsSynced: number } }
+  | { event: 'done'; data: TDone }
   | { event: 'error'; data: { message: string } }
 
-export async function streamSync(
+export async function streamSync<TDone = unknown>(
   path: string,
-  onEvent: (event: SyncEvent) => void
+  onEvent: (event: SyncEvent<TDone>) => void,
+  body?: unknown
 ): Promise<void> {
-  const res = await fetch(path, { method: 'POST' })
+  const res = await fetch(path, {
+    method: 'POST',
+    ...(body !== undefined && {
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+  })
 
   if (!res.ok) {
     // pre-stream failures (401, 404) are normal JSON errors
@@ -51,13 +58,13 @@ export async function streamSync(
 
     for (const chunk of chunks) {
       if (!chunk.trim()) continue
-      const event = parseSSEChunk(chunk)
+      const event = parseSSEChunk<TDone>(chunk)
       if (event) onEvent(event)
     }
   }
 }
 
-function parseSSEChunk(chunk: string): SyncEvent | null {
+function parseSSEChunk<TData>(chunk: string): SyncEvent<TData> | null {
   let eventName = 'message'
   let data = ''
 
@@ -67,5 +74,5 @@ function parseSSEChunk(chunk: string): SyncEvent | null {
   }
 
   if (!data) return null
-  return { event: eventName, data: JSON.parse(data) } as SyncEvent
+  return { event: eventName, data: JSON.parse(data) } as SyncEvent<TData>
 }
