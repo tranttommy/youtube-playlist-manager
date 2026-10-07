@@ -36,9 +36,9 @@ export default function VideoList({
       ? setSelectedIds(new Set(videos.map(v => v.id))) // select all
       : setSelectedIds(new Set()) // unselect all
 
-  const [targetPlaylist, setTargetPlaylist] = useState('')
+  const [targetPlaylistId, setTargetPlaylistId] = useState('')
 
-  const [deleteProgress, setDeleteProgress] = useState<{
+  const [progress, setProgress] = useState<{
     processed: number
     total: number
   } | null>(null)
@@ -46,14 +46,14 @@ export default function VideoList({
   const deleteMutation = useMutation({
     mutationFn: () => {
       let result: {
-        deleted: number
+        succeeded: number
         failed: number
         isQuotaHit: boolean
       } | null = null
       return streamSync<typeof result>(
         `/api/youtube/delete/${playlistId}`,
         event => {
-          if (event.event === 'progress') setDeleteProgress(event.data)
+          if (event.event === 'progress') setProgress(event.data)
           else if (event.event === 'done') result = event.data
           else if (event.event === 'error') throw new Error(event.data.message)
         },
@@ -67,20 +67,68 @@ export default function VideoList({
 
       if (result?.isQuotaHit) {
         toast.error(
-          `Deleted ${result.deleted} videos — daily quota exhausted. Resets at midnight Pacific.`
+          `Deleted ${result.succeeded} videos — daily quota exhausted. Resets at midnight Pacific.`
         )
       } else if (result?.failed) {
         toast.warning(
-          `Deleted ${result.deleted} videos, ${result.failed} failed`
+          `Deleted ${result.succeeded} videos, ${result.failed} failed`
         )
       } else {
-        toast.success(`Deleted ${result?.deleted ?? 0} videos`)
+        toast.success(`Deleted ${result?.succeeded ?? 0} videos`)
       }
     },
-    onSettled: () => setDeleteProgress(null)
+    onSettled: () => setProgress(null)
   })
 
-  const onMove = (target: string) => console.log({ target })
+  const handleDelete = () =>
+    confirm(
+      `Remove ${selectedCount} videos from this playlist? This cannot be undone.`
+    ) && deleteMutation.mutate()
+
+  const moveMutation = useMutation({
+    mutationFn: () => {
+      let result: {
+        succeeded: number
+        failed: number
+        isQuotaHit: boolean
+      } | null = null
+      return streamSync<typeof result>(
+        `/api/youtube/move/${playlistId}`,
+        event => {
+          if (event.event === 'progress') setProgress(event.data)
+          else if (event.event === 'done') result = event.data
+          else if (event.event === 'error') throw new Error(event.data.message)
+        },
+        { selectedIds: [...selectedIds], targetPlaylistId }
+      ).then(() => result)
+    },
+    onSuccess: result => {
+      setSelectedIds(new Set())
+      setTargetPlaylistId('')
+      queryClient.invalidateQueries({ queryKey })
+      queryClient.invalidateQueries({ queryKey: ['playlists'] })
+
+      if (result?.isQuotaHit) {
+        toast.error(
+          `Moved ${result.succeeded} videos — daily quota exhausted. Resets at midnight Pacific.`
+        )
+      } else if (result?.failed) {
+        toast.warning(
+          `Moved ${result.succeeded} videos, ${result.failed} failed`
+        )
+      } else {
+        toast.success(`Moved ${result?.succeeded ?? 0} videos`)
+      }
+    },
+    onSettled: () => {
+      setProgress(null)
+    }
+  })
+
+  const handleMove = () =>
+    confirm(
+      `Move ${selectedCount} videos from this playlist? This cannot be undone.`
+    ) && moveMutation.mutate()
 
   return (
     <div>
@@ -109,12 +157,13 @@ export default function VideoList({
               selectedCount > 0 ? '' : 'invisible'
             }`}
           >
-            {deleteMutation.isPending && deleteProgress ? (
+            {(deleteMutation.isPending || moveMutation.isPending)
+            && progress ? (
               <div className="w-64">
                 <ProgressBar
-                  processed={deleteProgress.processed}
-                  total={deleteProgress.total}
-                  label="Deleting"
+                  processed={progress.processed}
+                  total={progress.total}
+                  label={deleteMutation.isPending ? 'Deleting' : 'Moving'}
                 />
               </div>
             ) : (
@@ -123,8 +172,8 @@ export default function VideoList({
                   {selectedCount} selected
                 </span>
                 <select
-                  value={targetPlaylist}
-                  onChange={e => setTargetPlaylist(e.target.value)}
+                  value={targetPlaylistId}
+                  onChange={e => setTargetPlaylistId(e.target.value)}
                   aria-label="Move to playlist"
                   className="bg-surface-raised border border-border rounded-md px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-text-muted cursor-pointer max-w-40"
                 >
@@ -137,15 +186,15 @@ export default function VideoList({
                 </select>
                 <button
                   type="button"
-                  disabled={!targetPlaylist}
-                  onClick={() => onMove(targetPlaylist)}
+                  disabled={!targetPlaylistId}
+                  onClick={handleMove}
                   className="text-xs text-text-secondary hover:text-text-primary border border-border hover:border-text-muted rounded-md px-2.5 py-1.5 transition-colors duration-200 disabled:opacity-40 disabled:hover:text-text-secondary disabled:hover:border-border"
                 >
                   Move
                 </button>
                 <button
                   type="button"
-                  onClick={() => deleteMutation.mutate()}
+                  onClick={handleDelete}
                   className="text-xs text-accent hover:text-white hover:bg-accent border border-accent/50 hover:border-accent rounded-md px-2.5 py-1.5 transition-colors duration-200"
                 >
                   Delete

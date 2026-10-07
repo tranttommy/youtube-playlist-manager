@@ -2,6 +2,7 @@ import { sql } from 'bun'
 import type { youtube_v3 } from 'googleapis'
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
+import { getPlaylistItemsYoutubeIds } from '../../db/queries'
 import { Errors } from '../../errors'
 import { type UserIdEnv, withYouTube, type YouTubeEnv } from './middleware'
 
@@ -101,7 +102,6 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
                   }
                 }
               }
-
               await tx`
                 INSERT INTO playlist_items (youtube_id, video_youtube_id, playlist_id, channel_id, title, thumbnail, published_at)
                 VALUES (${item.id}, ${item.snippet?.resourceId?.videoId}, ${playlistId}, ${channelId}, ${item.snippet?.title}, ${item.snippet?.thumbnails?.medium?.url}, ${item.snippet?.publishedAt})
@@ -123,14 +123,14 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
           pageToken = data.nextPageToken ?? undefined
         } while (pageToken)
 
-        await stream.writeSSE({
+        return stream.writeSSE({
           event: 'done',
           data: JSON.stringify({ playlistItemsSynced: processed })
         })
       } catch (e) {
         // Failure becomes an event, not a status code
         console.error(e)
-        await stream.writeSSE({
+        return stream.writeSSE({
           event: 'error',
           data: JSON.stringify({ message: 'Failed to sync playlist items' })
         })
@@ -148,15 +148,12 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
       throw Errors.badRequest('Expected a non-empty array of item ids')
 
     // Get YouTube IDs
-    const items = await sql<{ id: string; youtube_id: string }[]>`
-      SELECT pi.id, pi.youtube_id
-      FROM playlist_items pi
-      JOIN playlists pl ON pl.id = pi.playlist_id
-      WHERE pi.id = ANY(${sql.array(selectedIds, 'TEXT')}::uuid[])
-        AND pi.playlist_id = ${playlistId}
-        AND pl.user_id = ${userId}
-    `
-    if (!items.length) throw Errors.notFound()
+    const items = await getPlaylistItemsYoutubeIds(
+      sql,
+      selectedIds,
+      playlistId,
+      userId
+    )
 
     return streamSSE(c, async stream => {
       const deletedIds: string[] = []
@@ -202,27 +199,132 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
             await tx`
               UPDATE playlists
               SET item_count = GREATEST(0, item_count - ${deletedIds.length}),
-                  updated_at = NOW()
+                updated_at = NOW()
               WHERE id = ${playlistId}
             `
           })
         }
       } catch (e) {
         console.error(e)
-        await stream.writeSSE({
+        return stream.writeSSE({
           event: 'error',
           data: JSON.stringify({
             message: `Deleted ${deletedIds.length} from YouTube, but failed to update locally. Re-sync this playlist.`
           })
         })
-        return
       }
 
-      await stream.writeSSE({
+      return stream.writeSSE({
         event: 'done',
         data: JSON.stringify({
-          deleted: deletedIds.length,
+          succeeded: deletedIds.length,
           failed: items.length - deletedIds.length,
+          isQuotaHit
+        })
+      })
+    })
+  })
+
+  .post('/move/:id', async c => {
+    const playlistId = c.req.param('id')
+    const userId = c.get('userId')
+    const youtube = c.get('youtube')
+    const { selectedIds, targetPlaylistId } = await c.req.json<{
+      selectedIds: string[]
+      targetPlaylistId: string
+    }>()
+
+    if (!Array.isArray(selectedIds) || !selectedIds.length)
+      throw Errors.badRequest('Expected a non-empty array of item ids')
+
+    const [targetPlaylist] = await sql<{ youtube_id: string }[]>`
+      SELECT youtube_id
+      FROM playlists
+      WHERE id = ${targetPlaylistId} AND user_id = ${userId}
+    `
+    if (!targetPlaylist) throw Errors.notFound('Target playlist not found')
+
+    // Get YouTube IDs
+    const items = await getPlaylistItemsYoutubeIds(
+      sql,
+      selectedIds,
+      playlistId,
+      userId
+    )
+
+    return streamSSE(c, async stream => {
+      const movedIds: string[] = []
+      let isQuotaHit = false
+      for (const item of items) {
+        try {
+          const { data: newYtPlaylistItem } =
+            await youtube.playlistItems.insert({
+              part: ['snippet'],
+              requestBody: {
+                snippet: {
+                  playlistId: targetPlaylist.youtube_id,
+                  resourceId: {
+                    kind: 'youtube#video',
+                    videoId: item.video_youtube_id
+                  }
+                }
+              }
+            })
+          await sql`
+            UPDATE playlist_items
+            SET youtube_id = ${newYtPlaylistItem.id},
+              playlist_id = ${targetPlaylistId},        
+              updated_at = NOW()
+            WHERE id = ${item.id}
+          `
+          await youtube.playlistItems.delete({ id: item.youtube_id })
+          movedIds.push(item.id)
+        } catch (e) {
+          const err = e as { status?: number; errors?: { reason?: string }[] }
+
+          if (
+            err?.status === 403
+            && err.errors?.some(x => x.reason === 'quotaExceeded')
+          ) {
+            isQuotaHit = true
+            break
+          } else {
+            console.error(`Failed to move ${item.youtube_id}`, e)
+          }
+        }
+        await stream.writeSSE({
+          event: 'progress',
+          data: JSON.stringify({
+            processed: movedIds.length,
+            total: items.length
+          })
+        })
+      }
+
+      try {
+        if (movedIds.length) {
+          await sql.begin(async tx => {
+            await tx`
+                UPDATE playlists
+                SET item_count = GREATEST(0, item_count - ${movedIds.length}), updated_at = NOW()
+                WHERE id = ${playlistId}
+              `
+            await tx`
+                UPDATE playlists
+                SET item_count = item_count + ${movedIds.length}, updated_at = NOW()
+                WHERE id = ${targetPlaylistId}
+              `
+          })
+        }
+      } catch (e) {
+        console.error(e)
+      }
+
+      return stream.writeSSE({
+        event: 'done',
+        data: JSON.stringify({
+          succeeded: movedIds.length,
+          failed: items.length - movedIds.length,
           isQuotaHit
         })
       })
