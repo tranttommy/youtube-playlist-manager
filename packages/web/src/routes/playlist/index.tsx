@@ -48,6 +48,7 @@ export default function PlaylistDetail() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey })
+      queryClient.invalidateQueries({ queryKey: ['playlists'] })
       toast.success('Playlist synced')
     },
     onSettled: () => setProgress(null) // clear the bar whether it succeeded or failed

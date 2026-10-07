@@ -65,6 +65,7 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
 
     return streamSSE(c, async stream => {
       const channelIds = new Map<string, string>()
+      const seenItemIds: string[] = []
       let processed = 0
       const total = playlist.item_count
 
@@ -110,6 +111,7 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
                   thumbnail = EXCLUDED.thumbnail,
                   updated_at = NOW()
               `
+              if (item.id) seenItemIds.push(item.id)
             }
           })
 
@@ -122,6 +124,20 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
 
           pageToken = data.nextPageToken ?? undefined
         } while (pageToken)
+
+        await sql.begin(async tx => {
+          await tx`
+            DELETE FROM playlist_items
+            WHERE playlist_id = ${playlistId}
+              AND youtube_id != ALL(${sql.array(seenItemIds, 'TEXT')})
+          `
+          await tx`
+            UPDATE playlists
+            SET item_count = ${processed},
+              updated_at = NOW()
+            WHERE id = ${playlistId} AND user_id = ${userId}
+          `
+        })
 
         return stream.writeSSE({
           event: 'done',
