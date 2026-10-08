@@ -7,8 +7,8 @@ interface only allows you to move videos one at a time.
 Playlists and their videos are synced into Postgres, so browsing, searching, and
 filtering are instant and cost no API quota. Edits go straight to YouTube.
 
-| | |
-|---|---|
+| View playlists | Move or delete videos in bulk |
+| --- | --- |
 | ![Playlist grid](docs/playlists.png) | ![Playlist detail with videos selected](docs/playlist-detail.png) |
 
 ## Stack
