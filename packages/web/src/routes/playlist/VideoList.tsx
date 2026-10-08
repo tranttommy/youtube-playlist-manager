@@ -7,6 +7,8 @@ import ProgressBar from '../../components/ProgressBar'
 import { streamSync } from '../../lib/request'
 import VideoRow from './VideoRow'
 
+type Operation = 'move' | 'delete'
+
 export default function VideoList({
   videos,
   playlistId,
@@ -45,46 +47,12 @@ export default function VideoList({
     total: number
   } | null>(null)
 
-  const deleteMutation = useMutation({
-    mutationFn: () =>
+  const mutation = useMutation({
+    mutationFn: (operation: Operation) =>
       streamSync<{
         succeeded: number
         failed: number
-        isQuotaHit: boolean
-      }>(`/api/youtube/delete/${playlistId}`, setProgress, [...selectedIds]),
-    onSuccess: result => {
-      setSelectedIds(new Set())
-      queryClient.invalidateQueries({ queryKey })
-      queryClient.invalidateQueries({ queryKey: ['playlists'] })
-      queryClient.invalidateQueries({ queryKey: ['quota'] })
-
-      if (result.isQuotaHit) {
-        toast.error(
-          `Deleted ${result.succeeded} videos — daily quota exhausted. Resets at midnight Pacific.`
-        )
-      } else if (result.failed) {
-        toast.warning(
-          `Deleted ${result.succeeded} videos, ${result.failed} failed`
-        )
-      } else {
-        toast.success(`Deleted ${result.succeeded ?? 0} videos`)
-      }
-    },
-    onSettled: () => setProgress(null)
-  })
-
-  const handleDelete = () =>
-    confirm(
-      `Remove ${selectedCount} videos from this playlist? This cannot be undone.`
-    ) && deleteMutation.mutate()
-
-  const moveMutation = useMutation({
-    mutationFn: () =>
-      streamSync<{
-        succeeded: number
-        failed: number
-        isQuotaHit: boolean
-      }>(`/api/youtube/move/${playlistId}`, setProgress, {
+      }>(`/api/youtube/${operation}/${playlistId}`, setProgress, {
         selectedIds: [...selectedIds],
         targetPlaylistId
       }),
@@ -95,25 +63,21 @@ export default function VideoList({
       queryClient.invalidateQueries({ queryKey: ['playlists'] })
       queryClient.invalidateQueries({ queryKey: ['quota'] })
 
-      if (result.isQuotaHit) {
-        toast.error(
-          `Moved ${result.succeeded} videos — daily quota exhausted. Resets at midnight Pacific.`
-        )
-      } else if (result.failed) {
+      if (result.failed) {
         toast.warning(
-          `Moved ${result.succeeded} videos, ${result.failed} failed`
+          `Processed ${result.succeeded} videos, ${result.failed} failed`
         )
       } else {
-        toast.success(`Moved ${result.succeeded ?? 0} videos`)
+        toast.success(`Processed ${result.succeeded ?? 0} videos`)
       }
     },
     onSettled: () => setProgress(null)
   })
 
-  const handleMove = () =>
+  const handleCut = (operation: Operation) =>
     confirm(
-      `Move ${selectedCount} videos from this playlist? This cannot be undone.`
-    ) && moveMutation.mutate()
+      `${operation === 'move' ? 'M' : 'Rem'}ove ${selectedCount} videos from this playlist? This cannot be undone.`
+    ) && mutation.mutate(operation)
 
   return (
     <div>
@@ -142,13 +106,12 @@ export default function VideoList({
               selectedCount > 0 ? '' : 'invisible'
             }`}
           >
-            {(deleteMutation.isPending || moveMutation.isPending)
-            && progress ? (
+            {mutation.isPending && progress ? (
               <div className="w-64">
                 <ProgressBar
                   processed={progress.processed}
                   total={progress.total}
-                  label={deleteMutation.isPending ? 'Deleting' : 'Moving'}
+                  label={'Processing'}
                 />
               </div>
             ) : (
@@ -172,7 +135,7 @@ export default function VideoList({
                 <button
                   type="button"
                   disabled={!targetPlaylistId || isQuotaExhausted}
-                  onClick={handleMove}
+                  onClick={() => handleCut('move')}
                   className="text-xs text-text-secondary border border-border rounded-md px-2.5 py-1.5 transition-colors duration-200 enabled:hover:text-text-primary enabled:hover:border-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Move
@@ -180,7 +143,7 @@ export default function VideoList({
                 <button
                   type="button"
                   disabled={isQuotaExhausted}
-                  onClick={handleDelete}
+                  onClick={() => handleCut('delete')}
                   className="text-xs text-accent border border-accent/50 rounded-md px-2.5 py-1.5 transition-colors duration-200 enabled:hover:text-white enabled:hover:bg-accent enabled:hover:border-accent disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Delete

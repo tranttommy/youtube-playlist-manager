@@ -192,7 +192,7 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
     const playlistId = c.req.param('id')
     const userId = c.get('userId')
     const youtube = c.get('youtube')
-    const selectedIds = await c.req.json<string[]>()
+    const { selectedIds } = await c.req.json<{ selectedIds: string[] }>()
 
     if (!Array.isArray(selectedIds) || !selectedIds.length)
       throw Errors.badRequest('Expected a non-empty array of item ids')
