@@ -5,7 +5,8 @@
     "dev": "docker compose up -d & concurrently -n server,web -c blue,green \"bun run dev:server\" \"bun run dev:web\"",
     "dev:server": "bun run --cwd packages/server dev",
     "migrate": "bun run --cwd packages/server migrate",
-    "dev:web": "bun run --cwd packages/web dev"
+    "dev:web": "bun run --cwd packages/web dev",
+    "lint": "biome ci ."
   },
   "workspaces": [
     "packages/*"

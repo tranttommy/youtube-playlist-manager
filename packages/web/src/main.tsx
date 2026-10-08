@@ -25,6 +25,7 @@ const queryClient = new QueryClient({
   })
 })
 
+// biome-ignore lint/style/noNonNullAssertion: Assumed to exist
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
