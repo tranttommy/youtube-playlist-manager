@@ -1,10 +1,9 @@
 import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { sql } from 'bun'
+import { sql as defaultSql } from 'bun'
 
 // Bun automatically connects to Postgres using POSTGRES_URL in .env
-async function migrate() {
-  // 1. Create tracking table if it doesn't exist
+export async function migrate(sql: Bun.SQL = defaultSql) {
   await sql`
     CREATE TABLE IF NOT EXISTS migrations (
       id SERIAL PRIMARY KEY,
@@ -14,9 +13,9 @@ async function migrate() {
   `
 
   // 2. Get already-applied migrations
-  const applied = await sql<
-    { name: string }[]
-  >`SELECT name FROM migrations ORDER BY id`
+  const applied = await sql<{ name: string }[]>`
+    SELECT name FROM migrations ORDER BY id
+  `
   const appliedNames = new Set(applied.map(r => r.name))
 
   // 3. Read migration files from disk
@@ -35,12 +34,17 @@ async function migrate() {
     await sql`INSERT INTO migrations (name) VALUES (${file})`
     console.log(`  ✓ Done`)
   }
-
-  console.log('All migrations applied.')
-  process.exit()
 }
 
-migrate().catch(err => {
-  console.error('Migration failed:', err)
-  process.exit(1)
-})
+// CLI entry — only runs when executed directly, not when imported
+if (import.meta.main) {
+  migrate()
+    .then(() => {
+      console.log('All migrations applied.')
+      process.exit()
+    })
+    .catch(err => {
+      console.error('Migration failed:', err)
+      process.exit(1)
+    })
+}
