@@ -38,20 +38,13 @@ export default function PlaylistDetail() {
 
   const syncMutation = useMutation({
     mutationFn: () =>
-      streamSync(`/api/youtube/pull/${id}`, event => {
-        if (event.event === 'progress') {
-          setProgress(event.data)
-        } else if (event.event === 'error') {
-          throw new Error(event.data.message)
-        }
-        // 'done' — nothing to do here; resolution happens when the stream closes
-      }),
-    onSuccess: () => {
+      streamSync<{ succeeded: number }>(`/api/youtube/pull/${id}`, setProgress),
+    onSuccess: result => {
       queryClient.invalidateQueries({ queryKey })
       queryClient.invalidateQueries({ queryKey: ['playlists'] })
-      toast.success('Playlist synced')
+      toast.success(`Synced ${result.succeeded} videos`)
     },
-    onSettled: () => setProgress(null) // clear the bar whether it succeeded or failed
+    onSettled: () => setProgress(null)
   })
 
   const [channelFilter, setChannelFilter] = useState<string>('')

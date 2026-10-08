@@ -29,6 +29,8 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
       throw Errors.upstream('Failed to fetch playlists from YouTube')
     }
 
+    if (!ytPlaylists.length) return c.json({ succeeded: 0 })
+
     const rows = ytPlaylists.map(p => ({
       youtube_id: p.id,
       user_id: userId,
@@ -38,25 +40,29 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
       published_at: p.snippet?.publishedAt
     }))
 
-    const playlists = await sql<{ youtube_id: string }[]>`
-      INSERT INTO playlists ${sql(rows, 'youtube_id', 'user_id', 'title', 'thumbnail', 'item_count', 'published_at')}
-      ON CONFLICT (youtube_id) DO UPDATE SET
-        title = EXCLUDED.title,
-        thumbnail = EXCLUDED.thumbnail,
-        item_count = EXCLUDED.item_count,
-        updated_at = NOW()
-      RETURNING youtube_id
-    `
-    
-    // Deletes playlists that are no longer on YouTube
-    await sql`
-      DELETE FROM playlists
-      WHERE user_id = ${userId} AND youtube_id != ALL(${sql.array(
-        playlists.map(p => p.youtube_id),
-        'TEXT'
-      )})
-    `
-    return c.json({ succeeded: playlists.length })
+    const succeeded = await sql.begin(async tx => {
+      const playlists = await tx<{ youtube_id: string }[]>`
+          INSERT INTO playlists ${sql(rows, 'youtube_id', 'user_id', 'title', 'thumbnail', 'item_count', 'published_at')}
+          ON CONFLICT (youtube_id) DO UPDATE SET
+            title = EXCLUDED.title,
+            thumbnail = EXCLUDED.thumbnail,
+            item_count = EXCLUDED.item_count,
+            updated_at = NOW()
+          RETURNING youtube_id
+        `
+
+      // Deletes playlists that are no longer on YouTube
+      await tx`
+          DELETE FROM playlists
+          WHERE user_id = ${userId} AND youtube_id != ALL(${sql.array(
+            playlists.map(p => p.youtube_id),
+            'TEXT'
+          )})
+        `
+      return playlists.length
+    })
+
+    return c.json({ succeeded })
   })
 
   .post('/pull/:id', async c => {
@@ -73,8 +79,7 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
 
     return streamSSE(c, async stream => {
       const channelIds = new Map<string, string>()
-      const seenItemIds: string[] = []
-      let processed = 0
+      const processedYtItemIds: string[] = []
       const total = playlist.item_count
 
       try {
@@ -88,46 +93,66 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
             pageToken
           })
           const items = data.items ?? []
+          if (!items.length) break
 
-          // Upsert this page (one transaction per page)
+          // Filter for dupe channels before inserting channels
+          const channelRows: {
+            youtube_id: string
+            title: string
+          }[] = []
+
+          for (const item of items) {
+            const ytChannelId = item.snippet?.videoOwnerChannelId
+            if (!ytChannelId || channelIds.has(ytChannelId)) continue
+            channelIds.set(ytChannelId, '')
+            channelRows.push({
+              youtube_id: ytChannelId,
+              title: item.snippet?.videoOwnerChannelTitle as string
+            })
+          }
+
           await sql.begin(async tx => {
-            for (const item of items) {
-              const ytChannelId = item.snippet?.videoOwnerChannelId
-              let channelId: string | null = null
+            if (channelRows.length) {
+              const channels = await tx<{ id: string; youtube_id: string }[]>`
+                INSERT INTO channels ${sql(channelRows, 'youtube_id', 'title')}
+                ON CONFLICT (youtube_id) DO UPDATE SET
+                  title = EXCLUDED.title
+                RETURNING id, youtube_id
+              `
+              channels.forEach(({ id, youtube_id }) => {
+                channelIds.set(youtube_id, id)
+              })
+            }
 
-              if (ytChannelId) {
-                channelId = channelIds.get(ytChannelId) ?? null
-                if (!channelId) {
-                  const [channel] = await tx<{ id: string }[]>`
-                    INSERT INTO channels (youtube_id, title)
-                    VALUES (${ytChannelId}, ${item.snippet?.videoOwnerChannelTitle})
-                    ON CONFLICT (youtube_id) DO UPDATE SET
-                      title = EXCLUDED.title
-                    RETURNING id
-                  `
-                  if (channel) {
-                    channelIds.set(ytChannelId, channel.id)
-                    channelId = channel.id
-                  }
-                }
-              }
-              await tx`
-                INSERT INTO playlist_items (youtube_id, video_youtube_id, playlist_id, channel_id, title, thumbnail, published_at)
-                VALUES (${item.id}, ${item.snippet?.resourceId?.videoId}, ${playlistId}, ${channelId}, ${item.snippet?.title}, ${item.snippet?.thumbnails?.medium?.url}, ${item.snippet?.publishedAt})
+            const playlistItemRows = items.map(item => ({
+              youtube_id: item.id,
+              video_youtube_id: item.snippet?.resourceId?.videoId,
+              playlist_id: playlistId,
+              channel_id:
+                channelIds.get(item.snippet?.videoOwnerChannelId as string)
+                || null,
+              title: item.snippet?.title,
+              thumbnail: item.snippet?.thumbnails?.medium?.url,
+              published_at: item.snippet?.publishedAt
+            }))
+
+            const newItems = await tx<{ youtube_id: string }[]>`
+                INSERT INTO playlist_items ${sql(playlistItemRows, 'youtube_id', 'video_youtube_id', 'playlist_id', 'channel_id', 'title', 'thumbnail', 'published_at')}            
                 ON CONFLICT (youtube_id) DO UPDATE SET
                   title = EXCLUDED.title,
                   thumbnail = EXCLUDED.thumbnail,
                   updated_at = NOW()
+                RETURNING youtube_id
               `
-              if (item.id) seenItemIds.push(item.id)
-            }
+            processedYtItemIds.push(...newItems.map(item => item.youtube_id))
           })
-
           // Emit progress for this page
-          processed += items.length
           await stream.writeSSE({
             event: 'progress',
-            data: JSON.stringify({ processed, total })
+            data: JSON.stringify({
+              processed: processedYtItemIds.length,
+              total
+            })
           })
 
           pageToken = data.nextPageToken ?? undefined
@@ -137,11 +162,11 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
           await tx`
             DELETE FROM playlist_items
             WHERE playlist_id = ${playlistId}
-              AND youtube_id != ALL(${sql.array(seenItemIds, 'TEXT')})
+              AND youtube_id != ALL(${sql.array(processedYtItemIds, 'TEXT')})
           `
           await tx`
             UPDATE playlists
-            SET item_count = ${processed},
+            SET item_count = ${processedYtItemIds.length},
               updated_at = NOW()
             WHERE id = ${playlistId} AND user_id = ${userId}
           `
@@ -149,7 +174,7 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
 
         return stream.writeSSE({
           event: 'done',
-          data: JSON.stringify({ playlistItemsSynced: processed })
+          data: JSON.stringify({ succeeded: processedYtItemIds.length })
         })
       } catch (e) {
         // Failure becomes an event, not a status code

@@ -44,37 +44,27 @@ export default function VideoList({
   } | null>(null)
 
   const deleteMutation = useMutation({
-    mutationFn: () => {
-      let result: {
+    mutationFn: () =>
+      streamSync<{
         succeeded: number
         failed: number
         isQuotaHit: boolean
-      } | null = null
-      return streamSync<typeof result>(
-        `/api/youtube/delete/${playlistId}`,
-        event => {
-          if (event.event === 'progress') setProgress(event.data)
-          else if (event.event === 'done') result = event.data
-          else if (event.event === 'error') throw new Error(event.data.message)
-        },
-        [...selectedIds]
-      ).then(() => result)
-    },
+      }>(`/api/youtube/delete/${playlistId}`, setProgress, [...selectedIds]),
     onSuccess: result => {
       setSelectedIds(new Set())
       queryClient.invalidateQueries({ queryKey })
       queryClient.invalidateQueries({ queryKey: ['playlists'] })
 
-      if (result?.isQuotaHit) {
+      if (result.isQuotaHit) {
         toast.error(
           `Deleted ${result.succeeded} videos — daily quota exhausted. Resets at midnight Pacific.`
         )
-      } else if (result?.failed) {
+      } else if (result.failed) {
         toast.warning(
           `Deleted ${result.succeeded} videos, ${result.failed} failed`
         )
       } else {
-        toast.success(`Deleted ${result?.succeeded ?? 0} videos`)
+        toast.success(`Deleted ${result.succeeded ?? 0} videos`)
       }
     },
     onSettled: () => setProgress(null)
@@ -86,43 +76,34 @@ export default function VideoList({
     ) && deleteMutation.mutate()
 
   const moveMutation = useMutation({
-    mutationFn: () => {
-      let result: {
+    mutationFn: () =>
+      streamSync<{
         succeeded: number
         failed: number
         isQuotaHit: boolean
-      } | null = null
-      return streamSync<typeof result>(
-        `/api/youtube/move/${playlistId}`,
-        event => {
-          if (event.event === 'progress') setProgress(event.data)
-          else if (event.event === 'done') result = event.data
-          else if (event.event === 'error') throw new Error(event.data.message)
-        },
-        { selectedIds: [...selectedIds], targetPlaylistId }
-      ).then(() => result)
-    },
+      }>(`/api/youtube/move/${playlistId}`, setProgress, {
+        selectedIds: [...selectedIds],
+        targetPlaylistId
+      }),
     onSuccess: result => {
       setSelectedIds(new Set())
       setTargetPlaylistId('')
       queryClient.invalidateQueries({ queryKey })
       queryClient.invalidateQueries({ queryKey: ['playlists'] })
 
-      if (result?.isQuotaHit) {
+      if (result.isQuotaHit) {
         toast.error(
           `Moved ${result.succeeded} videos — daily quota exhausted. Resets at midnight Pacific.`
         )
-      } else if (result?.failed) {
+      } else if (result.failed) {
         toast.warning(
           `Moved ${result.succeeded} videos, ${result.failed} failed`
         )
       } else {
-        toast.success(`Moved ${result?.succeeded ?? 0} videos`)
+        toast.success(`Moved ${result.succeeded ?? 0} videos`)
       }
     },
-    onSettled: () => {
-      setProgress(null)
-    }
+    onSettled: () => setProgress(null)
   })
 
   const handleMove = () =>

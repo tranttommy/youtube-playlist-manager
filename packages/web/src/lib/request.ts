@@ -23,9 +23,9 @@ type SyncEvent<TDone> =
 
 export async function streamSync<TDone = unknown>(
   path: string,
-  onEvent: (event: SyncEvent<TDone>) => void,
+  onProgress: (event: { processed: number; total: number }) => void,
   body?: unknown
-): Promise<void> {
+): Promise<TDone> {
   const res = await fetch(path, {
     method: 'POST',
     ...(body !== undefined && {
@@ -45,13 +45,11 @@ export async function streamSync<TDone = unknown>(
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
-
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
 
     buffer += decoder.decode(value, { stream: true })
-
     // SSE events are separated by a blank line (\n\n)
     const chunks = buffer.split('\n\n')
     buffer = chunks.pop() ?? '' // keep the incomplete trailing chunk
@@ -59,20 +57,24 @@ export async function streamSync<TDone = unknown>(
     for (const chunk of chunks) {
       if (!chunk.trim()) continue
       const event = parseSSEChunk<TDone>(chunk)
-      if (event) onEvent(event)
+      if (event?.event === 'done') return event.data
+      if (event?.event === 'progress') onProgress(event.data)
+      if (event?.event === 'error') throw new Error(event.data.message)
     }
   }
+
+  throw new Error('Stream ended unexpectedly')
 }
 
 function parseSSEChunk<TData>(chunk: string): SyncEvent<TData> | null {
-  let eventName = 'message'
+  let event = ''
   let data = ''
 
   for (const line of chunk.split('\n')) {
-    if (line.startsWith('event:')) eventName = line.slice(6).trim()
+    if (line.startsWith('event:')) event = line.slice(6).trim()
     else if (line.startsWith('data:')) data += line.slice(5).trim()
   }
 
   if (!data) return null
-  return { event: eventName, data: JSON.parse(data) } as SyncEvent<TData>
+  return { event, data: JSON.parse(data) } as SyncEvent<TData>
 }
