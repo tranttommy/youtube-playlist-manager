@@ -16,12 +16,12 @@ export default function Playlists() {
 
   const mutation = useMutation({
     mutationFn: () =>
-      request<{ playlistsSynced: number }>('/api/youtube/pull', {
+      request<{ succeeded: number }>('/api/youtube/pull', {
         method: 'POST'
       }),
-    onSuccess: ({ playlistsSynced }) => {
+    onSuccess: ({ succeeded }) => {
       queryClient.invalidateQueries({ queryKey })
-      toast.success(`Synced ${playlistsSynced} playlists`)
+      toast.success(`Synced ${succeeded} playlists`)
     }
   })
 

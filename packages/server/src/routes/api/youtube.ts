@@ -13,7 +13,6 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
     const youtube = c.get('youtube')
 
     const ytPlaylists: youtube_v3.Schema$Playlist[] = []
-
     try {
       let pageToken: string | undefined
       do {
@@ -30,25 +29,34 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
       throw Errors.upstream('Failed to fetch playlists from YouTube')
     }
 
-    const playlists = await sql.begin(async tx => {
-      const playlists: { id: string }[] = []
-      for (const ytPlaylist of ytPlaylists) {
-        const [playlist] = await tx<{ id: string }[]>`
-          INSERT INTO playlists (youtube_id, user_id, title, thumbnail, item_count, published_at)
-          VALUES (${ytPlaylist.id}, ${userId}, ${ytPlaylist.snippet?.title}, ${ytPlaylist.snippet?.thumbnails?.medium?.url}, ${ytPlaylist.contentDetails?.itemCount}, ${ytPlaylist.snippet?.publishedAt})
-          ON CONFLICT (youtube_id) DO UPDATE SET
-            title = EXCLUDED.title,
-            thumbnail = EXCLUDED.thumbnail,
-            item_count = EXCLUDED.item_count,
-            updated_at = NOW()
-          RETURNING id
-        `
-        if (playlist) playlists.push(playlist)
-      }
-      return playlists
-    })
+    const rows = ytPlaylists.map(p => ({
+      youtube_id: p.id,
+      user_id: userId,
+      title: p.snippet?.title,
+      thumbnail: p.snippet?.thumbnails?.medium?.url,
+      item_count: p.contentDetails?.itemCount,
+      published_at: p.snippet?.publishedAt
+    }))
 
-    return c.json({ playlistsSynced: playlists.length })
+    const playlists = await sql<{ youtube_id: string }[]>`
+      INSERT INTO playlists ${sql(rows, 'youtube_id', 'user_id', 'title', 'thumbnail', 'item_count', 'published_at')}
+      ON CONFLICT (youtube_id) DO UPDATE SET
+        title = EXCLUDED.title,
+        thumbnail = EXCLUDED.thumbnail,
+        item_count = EXCLUDED.item_count,
+        updated_at = NOW()
+      RETURNING youtube_id
+    `
+    
+    // Deletes playlists that are no longer on YouTube
+    await sql`
+      DELETE FROM playlists
+      WHERE user_id = ${userId} AND youtube_id != ALL(${sql.array(
+        playlists.map(p => p.youtube_id),
+        'TEXT'
+      )})
+    `
+    return c.json({ succeeded: playlists.length })
   })
 
   .post('/pull/:id', async c => {

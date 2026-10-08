@@ -12,6 +12,7 @@ export default new Hono()
     const authClient = createAuthClient()
     const authUrl = authClient.generateAuthUrl({
       access_type: 'offline',
+      prompt: 'consent',
       scope: [
         'openid',
         'email',
