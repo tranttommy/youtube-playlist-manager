@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Playlist } from '@ypm/shared'
 import { toast } from 'sonner'
 import PullIcon from '../../components/PullIcon'
+import { useQuota } from '../../lib/hooks'
 import { request } from '../../lib/request'
 import PlaylistGrid from './PlaylistGrid'
 import PlaylistGridSkeleton from './PlaylistGridSkeleton'
@@ -13,7 +14,7 @@ export default function Playlists() {
     queryKey,
     queryFn: () => request<Playlist[]>('/api/playlists')
   })
-
+  const { isQuotaExhausted } = useQuota()
   const mutation = useMutation({
     mutationFn: () =>
       request<{ succeeded: number }>('/api/youtube/pull', {
@@ -21,6 +22,7 @@ export default function Playlists() {
       }),
     onSuccess: ({ succeeded }) => {
       queryClient.invalidateQueries({ queryKey })
+      queryClient.invalidateQueries({ queryKey: ['quota'] })
       toast.success(`Synced ${succeeded} playlists`)
     }
   })
@@ -46,8 +48,8 @@ export default function Playlists() {
           <button
             type="button"
             onClick={() => mutation.mutate()}
-            disabled={mutation.isPending}
-            className="mt-10 inline-flex items-center gap-2.5 bg-accent hover:bg-accent/85 text-white text-sm font-medium px-6 py-3 rounded-lg transition-colors duration-200"
+            disabled={mutation.isPending || isQuotaExhausted}
+            className="mt-10 inline-flex items-center gap-2.5 bg-accent hover:bg-accent/85 text-white text-sm font-medium px-6 py-3 rounded-lg transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-accent"
           >
             <PullIcon />
             {mutation.isPending ? 'Pulling...' : 'Pull Playlists'}

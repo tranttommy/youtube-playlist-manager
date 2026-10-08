@@ -4,6 +4,7 @@ import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { getPlaylistItemsYoutubeIds } from '../../db/queries'
 import { Errors } from '../../errors'
+import { checkQuotaExhausted, markQuotaExhausted } from '../../quota'
 import { type UserIdEnv, withYouTube, type YouTubeEnv } from './middleware'
 
 export default new Hono<UserIdEnv & YouTubeEnv>()
@@ -203,28 +204,25 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
       playlistId,
       userId
     )
+    if (!items.length) throw Errors.notFound('Selected IDs not found')
 
     return streamSSE(c, async stream => {
       const deletedIds: string[] = []
-      let isQuotaHit = false
 
       for (const item of items) {
         try {
           await youtube.playlistItems.delete({ id: item.youtube_id })
           deletedIds.push(item.id)
         } catch (e) {
-          const err = e as { status?: number; errors?: { reason?: string }[] }
-
-          if (err?.status === 404) {
-            deletedIds.push(item.id) // already gone on YouTube, clean up locally
-          } else if (
-            err?.status === 403
-            && err.errors?.some(x => x.reason === 'quotaExceeded')
-          ) {
-            isQuotaHit = true
-            break
-          } else {
-            console.error(`Failed to delete ${item.youtube_id}`, e)
+          if (checkQuotaExhausted(e)) {
+            markQuotaExhausted()
+            return stream.writeSSE({
+              event: 'error',
+              data: JSON.stringify({
+                message:
+                  'Daily YouTube quota exhausted. Resets at midnight Pacific.'
+              })
+            })
           }
         }
 
@@ -267,8 +265,7 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
         event: 'done',
         data: JSON.stringify({
           succeeded: deletedIds.length,
-          failed: items.length - deletedIds.length,
-          isQuotaHit
+          failed: items.length - deletedIds.length
         })
       })
     })
@@ -300,10 +297,10 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
       playlistId,
       userId
     )
+    if (!items.length) throw Errors.notFound('Selected IDs not found')
 
     return streamSSE(c, async stream => {
       const movedIds: string[] = []
-      let isQuotaHit = false
       for (const item of items) {
         try {
           const { data: newYtPlaylistItem } =
@@ -329,16 +326,15 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
           await youtube.playlistItems.delete({ id: item.youtube_id })
           movedIds.push(item.id)
         } catch (e) {
-          const err = e as { status?: number; errors?: { reason?: string }[] }
-
-          if (
-            err?.status === 403
-            && err.errors?.some(x => x.reason === 'quotaExceeded')
-          ) {
-            isQuotaHit = true
-            break
-          } else {
-            console.error(`Failed to move ${item.youtube_id}`, e)
+          if (checkQuotaExhausted(e)) {
+            markQuotaExhausted()
+            return stream.writeSSE({
+              event: 'error',
+              data: JSON.stringify({
+                message:
+                  'Daily YouTube quota exhausted. Resets at midnight Pacific.'
+              })
+            })
           }
         }
         await stream.writeSSE({
@@ -373,8 +369,7 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
         event: 'done',
         data: JSON.stringify({
           succeeded: movedIds.length,
-          failed: items.length - movedIds.length,
-          isQuotaHit
+          failed: items.length - movedIds.length
         })
       })
     })

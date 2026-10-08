@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import ProgressBar from '../../components/ProgressBar'
 import PullIcon from '../../components/PullIcon'
 import { NO_CHANNEL } from '../../lib/constants'
+import { useQuota } from '../../lib/hooks'
 import { request, streamSync } from '../../lib/request'
 import ChannelFilter from './ChannelFilter'
 import PlaylistSidebar from './PlaylistSidebar'
@@ -17,6 +18,7 @@ export default function PlaylistDetail() {
   const { id } = useParams()
   const queryClient = useQueryClient()
   const queryKey = ['playlist-detail', id]
+  const { isQuotaExhausted } = useQuota()
 
   // playlist metadata — read from the playlists cache
   const { data: playlists = [] } = useQuery({
@@ -42,6 +44,7 @@ export default function PlaylistDetail() {
     onSuccess: result => {
       queryClient.invalidateQueries({ queryKey })
       queryClient.invalidateQueries({ queryKey: ['playlists'] })
+      queryClient.invalidateQueries({ queryKey: ['quota'] })
       toast.success(`Synced ${result.succeeded} videos`)
     },
     onSettled: () => setProgress(null)
@@ -71,6 +74,7 @@ export default function PlaylistDetail() {
                 playlist={playlist}
                 onSync={() => syncMutation.mutate()}
                 isSyncing={syncMutation.isPending}
+                isQuotaExhausted={isQuotaExhausted}
               />
               <ChannelFilter
                 videos={videos}
@@ -95,6 +99,7 @@ export default function PlaylistDetail() {
             playlistId={id}
             playlists={playlists.filter(p => p.id !== playlist?.id)} // remove current playlist from options
             queryKey={queryKey}
+            isQuotaExhausted={isQuotaExhausted}
           />
         ) : (
           <div className="flex flex-col items-center text-center pt-12">
@@ -115,8 +120,8 @@ export default function PlaylistDetail() {
               <button
                 type="button"
                 onClick={() => syncMutation.mutate()}
-                disabled={syncMutation.isPending}
-                className="mt-10 inline-flex items-center gap-2.5 bg-accent hover:bg-accent/85 text-white text-sm font-medium px-6 py-3 rounded-lg transition-colors duration-200"
+                disabled={syncMutation.isPending || isQuotaExhausted}
+                className="mt-10 inline-flex items-center gap-2.5 bg-accent hover:bg-accent/85 text-white text-sm font-medium px-6 py-3 rounded-lg transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-accent"
               >
                 <PullIcon />
                 {syncMutation.isPending ? 'Pulling...' : 'Pull Videos'}

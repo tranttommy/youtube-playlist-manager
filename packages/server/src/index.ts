@@ -9,8 +9,7 @@ export default new Hono()
   .route('/auth', auth)
   .route('/api', api)
   .onError((e, c) => {
-    if (e instanceof AppError)
-      return c.json({ error: e.message }, e.status)
+    if (e instanceof AppError) return c.json({ error: e.message }, e.status)
 
     console.error('Unhandled error:', e)
     return c.json({ error: 'Internal server error' }, 500)

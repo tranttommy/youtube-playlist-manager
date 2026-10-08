@@ -11,12 +11,14 @@ export default function VideoList({
   videos,
   playlistId,
   playlists,
-  queryKey
+  queryKey,
+  isQuotaExhausted
 }: {
   videos: PlaylistItem[]
   playlistId?: string
   playlists: Playlist[]
   queryKey: (string | undefined)[]
+  isQuotaExhausted: boolean
 }) {
   const queryClient = useQueryClient()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -54,6 +56,7 @@ export default function VideoList({
       setSelectedIds(new Set())
       queryClient.invalidateQueries({ queryKey })
       queryClient.invalidateQueries({ queryKey: ['playlists'] })
+      queryClient.invalidateQueries({ queryKey: ['quota'] })
 
       if (result.isQuotaHit) {
         toast.error(
@@ -90,6 +93,7 @@ export default function VideoList({
       setTargetPlaylistId('')
       queryClient.invalidateQueries({ queryKey })
       queryClient.invalidateQueries({ queryKey: ['playlists'] })
+      queryClient.invalidateQueries({ queryKey: ['quota'] })
 
       if (result.isQuotaHit) {
         toast.error(
@@ -167,16 +171,17 @@ export default function VideoList({
                 </select>
                 <button
                   type="button"
-                  disabled={!targetPlaylistId}
+                  disabled={!targetPlaylistId || isQuotaExhausted}
                   onClick={handleMove}
-                  className="text-xs text-text-secondary hover:text-text-primary border border-border hover:border-text-muted rounded-md px-2.5 py-1.5 transition-colors duration-200 disabled:opacity-40 disabled:hover:text-text-secondary disabled:hover:border-border"
+                  className="text-xs text-text-secondary border border-border rounded-md px-2.5 py-1.5 transition-colors duration-200 enabled:hover:text-text-primary enabled:hover:border-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Move
                 </button>
                 <button
                   type="button"
+                  disabled={isQuotaExhausted}
                   onClick={handleDelete}
-                  className="text-xs text-accent hover:text-white hover:bg-accent border border-accent/50 hover:border-accent rounded-md px-2.5 py-1.5 transition-colors duration-200"
+                  className="text-xs text-accent border border-accent/50 rounded-md px-2.5 py-1.5 transition-colors duration-200 enabled:hover:text-white enabled:hover:bg-accent enabled:hover:border-accent disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Delete
                 </button>

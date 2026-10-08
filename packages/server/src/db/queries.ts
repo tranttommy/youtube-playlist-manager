@@ -1,5 +1,3 @@
-import { Errors } from '../errors'
-
 export const getPlaylistItemsYoutubeIds = async (
   sql: Bun.SQL,
   selectedIds: string[],
@@ -20,6 +18,5 @@ export const getPlaylistItemsYoutubeIds = async (
       AND pi.playlist_id = ${playlistId}
       AND pl.user_id = ${userId}
   `
-  if (!ids.length) throw Errors.notFound('Selected IDs not found')
   return ids
 }

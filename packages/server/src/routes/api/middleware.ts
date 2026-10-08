@@ -5,6 +5,7 @@ import { createMiddleware } from 'hono/factory'
 import { SESSION_COOKIE } from '../../config'
 import { Errors } from '../../errors'
 import { createAuthClient } from '../../lib'
+import { isQuotaExhausted } from '../../quota'
 
 export type UserIdEnv = {
   Variables: {
@@ -36,6 +37,11 @@ export const withAuth = createMiddleware<UserIdEnv>(async (c, next) => {
 export const withYouTube = createMiddleware<UserIdEnv & YouTubeEnv>(
   async (c, next) => {
     const userId = c.get('userId')
+
+    if (isQuotaExhausted())
+      throw Errors.upstream(
+        'Daily YouTube quota exhausted. Resets at midnight Pacific.'
+      )
 
     const [tokens] = await sql<
       { access_token: string; refresh_token: string }[]
