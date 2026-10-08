@@ -8,10 +8,10 @@ export const getPlaylistItemsYoutubeIds = async (
     {
       id: string
       youtube_id: string
-      video_youtube_id: string
+      youtube_video_id: string
     }[]
   >`
-    SELECT pi.id, pi.youtube_id, pi.video_youtube_id
+    SELECT pi.id, pi.youtube_id, pi.youtube_video_id
     FROM playlist_items pi
     JOIN playlists pl ON pl.id = pi.playlist_id
     WHERE pi.id = ANY(${sql.array(selectedIds, 'TEXT')}::uuid[])

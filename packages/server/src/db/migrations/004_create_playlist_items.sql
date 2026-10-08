@@ -7,7 +7,7 @@ CREATE TABLE channels (
 CREATE TABLE playlist_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   youtube_id TEXT NOT NULL UNIQUE,
-  video_youtube_id TEXT NOT NULL,
+  youtube_video_id TEXT NOT NULL,
   playlist_id UUID NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
   channel_id UUID REFERENCES channels(id),
   title TEXT NOT NULL,
