@@ -127,7 +127,7 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
 
             const playlistItemRows = items.map(item => ({
               youtube_id: item.id,
-              video_youtube_id: item.snippet?.resourceId?.videoId,
+              youtube_video_id: item.snippet?.resourceId?.videoId,
               playlist_id: playlistId,
               channel_id:
                 channelIds.get(item.snippet?.videoOwnerChannelId as string)
@@ -138,7 +138,7 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
             }))
 
             const newItems = await tx<{ youtube_id: string }[]>`
-                INSERT INTO playlist_items ${sql(playlistItemRows, 'youtube_id', 'video_youtube_id', 'playlist_id', 'channel_id', 'title', 'thumbnail', 'published_at')}            
+                INSERT INTO playlist_items ${sql(playlistItemRows, 'youtube_id', 'youtube_video_id', 'playlist_id', 'channel_id', 'title', 'thumbnail', 'published_at')}            
                 ON CONFLICT (youtube_id) DO UPDATE SET
                   title = EXCLUDED.title,
                   thumbnail = EXCLUDED.thumbnail,
@@ -311,7 +311,7 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
                   playlistId: targetPlaylist.youtube_id,
                   resourceId: {
                     kind: 'youtube#video',
-                    videoId: item.video_youtube_id
+                    videoId: item.youtube_video_id
                   }
                 }
               }
