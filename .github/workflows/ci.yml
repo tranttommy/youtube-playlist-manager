@@ -28,6 +28,7 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun run lint
+      - run: bun run typecheck
       - run: bun run test
         env:
           TEST_POSTGRES_URL: postgres://ypm-user:ypm-password@localhost:5433/ypm-test

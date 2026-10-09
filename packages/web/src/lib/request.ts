@@ -66,7 +66,7 @@ export async function streamSync<TDone = unknown>(
   throw new Error('Stream ended unexpectedly')
 }
 
-function parseSSEChunk<TData>(chunk: string): SyncEvent<TData> | null {
+export function parseSSEChunk<TData>(chunk: string): SyncEvent<TData> | null {
   let event = ''
   let data = ''
 
