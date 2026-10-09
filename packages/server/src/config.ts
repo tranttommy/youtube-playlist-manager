@@ -10,7 +10,8 @@ export const config = {
     clientSecret: required('GOOGLE_CLIENT_SECRET'),
     redirectUrl: required('GOOGLE_REDIRECT_URL')
   },
-  webUrl: required('WEB_URL')
+  webUrl: required('WEB_URL'),
+  port: Number(process.env.PORT ?? 3000)
 }
 
 export const SESSION_COOKIE = 'session_id'
