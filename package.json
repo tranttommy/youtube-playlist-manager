@@ -9,7 +9,10 @@
     "lint": "biome ci .",
     "test": "bun run test:server && bun run test:web",
     "test:server": "bun test --cwd packages/server",
-    "test:web": "bun test --cwd packages/web"
+    "test:web": "bun test --cwd packages/web",
+    "typecheck": "bun run typecheck:server && bun run typecheck:web",
+    "typecheck:server": "bun run --cwd packages/server tsc",
+    "typecheck:web": "bun run --cwd packages/server tsc"
   },
   "workspaces": [
     "packages/*"
@@ -17,6 +20,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.0",
     "@types/bun": "latest",
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "typescript": "^7.0.2"
   }
 }
