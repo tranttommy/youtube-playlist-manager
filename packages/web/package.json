@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bunx --bun vite",
-    "build": "vite build",
+    "build": "bunx --bun vite build",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -20,6 +20,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "@ypm/shared": "workspace:*",
+    "tailwindcss": "^4.3.3",
     "vite": "^8.0.1"
   }
 }

@@ -61,7 +61,7 @@ export default new Hono()
 
     setCookie(c, SESSION_COOKIE, session.id, {
       httpOnly: true,
-      secure: false,
+      secure: config.nodeEnv === 'production',
       sameSite: 'Lax',
       maxAge: 60 * 60 * 24 * 7, // 1 week
       path: '/'
@@ -89,7 +89,11 @@ export default new Hono()
       await sql`
         DELETE FROM sessions WHERE id = ${sessionId}
       `
-      deleteCookie(c, SESSION_COOKIE, { path: '/' })
+      deleteCookie(c, SESSION_COOKIE, {
+        path: '/',
+        secure: config.nodeEnv === 'production',
+        sameSite: 'Lax'
+      })
     }
     return c.redirect(config.webUrl)
   })
