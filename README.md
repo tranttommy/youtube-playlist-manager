@@ -7,8 +7,8 @@ interface only allows you to move videos one at a time.
 Playlists and their videos are synced into Postgres, so browsing, searching, and
 filtering are instant and cost no API quota. Edits go straight to YouTube.
 
-| View playlists | Move or delete videos in bulk |
-| --- | --- |
+| View playlists                       | Move or delete videos in bulk                                     |
+| ------------------------------------ | ----------------------------------------------------------------- |
 | ![Playlist grid](docs/playlists.png) | ![Playlist detail with videos selected](docs/playlist-detail.png) |
 
 ## Stack
@@ -19,10 +19,29 @@ filtering are instant and cost no API quota. Edits go straight to YouTube.
 | Server   | Hono                                               |
 | Database | PostgreSQL 18 in Docker, queried with `Bun.sql`    |
 | Frontend | React 19 + Vite + TypeScript                       |
-| Styling  | Tailwind v4 (CSS-first `@theme`, no config file)   |
+| Styling  | TailwindCSS                                        |
 | Data     | TanStack Query                                     |
 | Routing  | React Router                                       |
-| Tooling  | Biome (lint + format)                              |
+| Tooling  | Biome (linting + formatting)                       |
+
+## Known limitations
+
+- **Sign-in is restricted to approved accounts.** The Google OAuth consent
+  screen is in Testing mode, so only accounts added as test users in the Cloud
+  Console can sign in. Everyone else is blocked by Google before reaching the
+  app. Publishing would require Google verification, which isn't worth it for a
+  personal tool.
+- **The first load after idle is slow.** Render's free tier sleeps a service
+  after 15 minutes of inactivity and Neon scales its database to zero, so a cold
+  request can take up to a minute while both wake up. Subsequent requests are
+  normal.
+- **Watch Later and History are inaccessible.** Google deprecated API access to
+  these playlists in 2016. Nothing to be done from this side.
+- **YouTube's read path lags behind writes.** Counts and listings can be stale
+  for a short window after a delete or move.
+- **Deleted and private videos** appear with no channel and a placeholder title.
+  That's intentional — finding them is half the point.
+- **Quota tracking is in-memory**, so it resets if the server restarts.
 
 ## Setup
 
@@ -250,23 +269,26 @@ so 100 units per video — moving 100 videos spends the entire daily allowance.
 When the limit is hit, the app flags it and disables editing until the next
 reset. Quota is shared across everyone using the same Cloud project.
 
-## Known limitations
+## Deployment
 
-- **Watch Later and History are inaccessible.** Google deprecated API access to
-  these playlists in 2016. Nothing to be done from this side.
-- **YouTube's read path lags behind writes.** Counts and listings can be stale
-  for a short window after a delete or move.
-- **Deleted and private videos** appear with no channel and a placeholder title.
-  That's intentional — finding them is half the point.
-- **Quota tracking is in-memory**, so it resets if the server restarts.
+The app runs as a single Docker container on [Render](https://render.com), with
+Postgres on [Neon](https://neon.tech). Hono serves the built frontend as static
+files, so there's one origin and no CORS.
 
-## Status
+| Piece    | Where                                                  |
+| -------- | ------------------------------------------------------ |
+| App      | Render web service, built from the `Dockerfile`        |
+| Database | Neon (pooled connection string)                        |
+| Secrets  | Render dashboard → Environment                         |
 
-Working: auth with token refresh, playlist and per-playlist video sync with
-progress and reconciliation, channel filtering, multi-select, batch delete and
-move, quota detection.
+Migrations run on container boot. The runner is idempotent, so a new migration
+applies itself on the next deploy and existing ones are skipped.
 
-Next: deployment, CI, cross-platform channel search, duplicate detection.
+To deploy somewhere else, the only requirements are a container runtime, a
+Postgres URL, and the same environment variables listed in
+[Environment variables](#3-environment-variables) — plus `GOOGLE_REDIRECT_URL`
+pointing at the deployed domain, and that same URL added to the authorized
+redirect URIs in Google Cloud Console. The path must include `/auth/callback`.
 
 ## License
 
