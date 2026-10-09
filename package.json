@@ -12,7 +12,8 @@
     "test:web": "bun test --cwd packages/web",
     "typecheck": "bun run typecheck:server && bun run typecheck:web",
     "typecheck:server": "bun run --cwd packages/server tsc",
-    "typecheck:web": "bun run --cwd packages/web tsc"
+    "typecheck:web": "bun run --cwd packages/web tsc",
+    "build": "bun run --cwd packages/web build"
   },
   "workspaces": [
     "packages/*"
