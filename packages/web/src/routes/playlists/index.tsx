@@ -34,7 +34,12 @@ export default function Playlists() {
       {isLoading ? (
         <PlaylistGridSkeleton />
       ) : playlists.length ? (
-        <PlaylistGrid playlists={playlists} />
+        <PlaylistGrid
+          playlists={playlists}
+          onSync={() => mutation.mutate()}
+          isSyncing={mutation.isPending}
+          isQuotaExhausted={isQuotaExhausted}
+        />
       ) : (
         <div className="flex flex-col items-center text-center">
           <PlaylistIcon />
