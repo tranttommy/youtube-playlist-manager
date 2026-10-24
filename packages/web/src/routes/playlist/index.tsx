@@ -9,6 +9,7 @@ import { NO_CHANNEL } from '../../lib/constants'
 import { useQuota } from '../../lib/hooks'
 import { request, streamSync } from '../../lib/request'
 import ChannelFilter from './ChannelFilter'
+import DurationSort from './DurationSort'
 import PlaylistSidebar from './PlaylistSidebar'
 import PlaylistSidebarSkeleton from './PlaylistSidebarSkeleton'
 import VideoList from './VideoList'
@@ -50,17 +51,32 @@ export default function PlaylistDetail() {
     onSettled: () => setProgress(null)
   })
 
-  const [channelFilter, setChannelFilter] = useState<string>('')
+  const [channelFilter, setChannelFilter] = useState('')
+  const [durationSort, setDurationSort] = useState('')
 
   // the filtered view handed to VideoList
   const filteredVideos = useMemo(
     () =>
       !channelFilter
         ? videos
-        : channelFilter === NO_CHANNEL
-          ? videos.filter(video => !video.channel_id)
-          : videos.filter(video => video.channel_id === channelFilter),
+        : videos.filter(video =>
+            channelFilter === NO_CHANNEL
+              ? !video.channel_id
+              : video.channel_id === channelFilter
+          ),
     [videos, channelFilter]
+  )
+
+  const sortedVideos = useMemo(
+    () =>
+      !durationSort
+        ? filteredVideos
+        : filteredVideos.toSorted((a, b) =>
+            durationSort === 'ascending'
+              ? (a.duration ?? 0) - (b.duration ?? 0)
+              : (b.duration ?? 0) - (a.duration ?? 0)
+          ),
+    [filteredVideos, durationSort]
   )
 
   return (
@@ -79,8 +95,9 @@ export default function PlaylistDetail() {
               <ChannelFilter
                 videos={videos}
                 value={channelFilter}
-                onChange={channel => setChannelFilter(channel)}
+                onChange={setChannelFilter}
               />
+              <DurationSort value={durationSort} onChange={setDurationSort} />
             </>
           ) : (
             <PlaylistSidebarSkeleton />
@@ -95,7 +112,7 @@ export default function PlaylistDetail() {
         ) : videos.length ? (
           <VideoList
             key={channelFilter}
-            videos={filteredVideos}
+            videos={sortedVideos}
             playlistId={id}
             playlists={playlists.filter(p => p.id !== playlist?.id)} // remove current playlist from options
             queryKey={queryKey}

@@ -1,6 +1,7 @@
 import type { PlaylistItem } from '@ypm/shared'
 import Checkbox from '../../components/Checkbox'
 import NoThumbnailIcon from '../../components/NoThumbnailIcon'
+import { formatDuration } from '../../lib/utils'
 
 export default function VideoRow({
   video,
@@ -40,6 +41,12 @@ export default function VideoRow({
             <div className="w-full h-full flex items-center justify-center">
               <NoThumbnailIcon />
             </div>
+          )}
+          {/* Video Length Badge */}
+          {video.duration !== null && (
+            <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[11px] font-medium leading-none px-1.5 py-1 rounded">
+              {formatDuration(video.duration)}
+            </span>
           )}
         </div>
 

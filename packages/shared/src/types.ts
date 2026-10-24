@@ -19,4 +19,5 @@ export interface PlaylistItem {
   thumbnail: string | null
   channel_title: string | null
   channel_id: string | null
+  duration: number | null
 }
