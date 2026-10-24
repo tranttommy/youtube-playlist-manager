@@ -5,6 +5,7 @@ import { streamSSE } from 'hono/streaming'
 import { getPlaylistItemsYoutubeIds } from '../../db/queries'
 import { Errors } from '../../errors'
 import { checkQuotaExhausted, markQuotaExhausted } from '../../quota'
+import { parseDuration } from '../../utils'
 import { type UserIdEnv, withYouTube, type YouTubeEnv } from './middleware'
 
 export default new Hono<UserIdEnv & YouTubeEnv>()
@@ -96,6 +97,22 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
           const items = data.items ?? []
           if (!items.length) break
 
+          // Get video durations
+          const videoDurationMap = new Map<string, number>()
+          const videoIds = items
+            .map(i => i.snippet?.resourceId?.videoId)
+            .filter((id): id is string => !!id)
+          const { data: videosData } = await youtube.videos.list({
+            id: videoIds,
+            part: ['contentDetails']
+          })
+          videosData.items?.forEach(i => {
+            const duration = i.contentDetails?.duration
+            if (duration && i.id)
+              videoDurationMap.set(i.id, parseDuration(duration))
+          })
+          console.log(videoDurationMap)
+
           // Filter for dupe channels before inserting channels
           const channelRows: {
             youtube_id: string
@@ -134,14 +151,19 @@ export default new Hono<UserIdEnv & YouTubeEnv>()
                 || null,
               title: item.snippet?.title,
               thumbnail: item.snippet?.thumbnails?.medium?.url,
-              published_at: item.snippet?.publishedAt
+              published_at: item.snippet?.publishedAt,
+              duration:
+                videoDurationMap.get(
+                  item.snippet?.resourceId?.videoId as string
+                ) || null
             }))
 
             const newItems = await tx<{ youtube_id: string }[]>`
-                INSERT INTO playlist_items ${sql(playlistItemRows, 'youtube_id', 'youtube_video_id', 'playlist_id', 'channel_id', 'title', 'thumbnail', 'published_at')}            
+                INSERT INTO playlist_items ${sql(playlistItemRows, 'youtube_id', 'youtube_video_id', 'playlist_id', 'channel_id', 'title', 'thumbnail', 'published_at', 'duration')}            
                 ON CONFLICT (youtube_id) DO UPDATE SET
                   title = EXCLUDED.title,
                   thumbnail = EXCLUDED.thumbnail,
+                  duration = EXCLUDED.duration,
                   updated_at = NOW()
                 RETURNING youtube_id
               `

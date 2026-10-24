@@ -40,18 +40,18 @@ async function seedDatabase(googleId: string) {
     RETURNING id
   `
   const [item1] = await sql<{ id: string }[]>`
-    INSERT INTO playlist_items (youtube_id, youtube_video_id, playlist_id, title)
-    VALUES (${`ITEM_${googleId}1`}, ${`VID_${googleId}1`}, ${playlist1!.id}, 'Test Video 1.1')
+    INSERT INTO playlist_items (youtube_id, youtube_video_id, playlist_id, title, duration)
+    VALUES (${`ITEM_${googleId}1`}, ${`VID_${googleId}1`}, ${playlist1!.id}, 'Test Video 1.1', 33)
     RETURNING id
   `
-  const [item2] = await sql<{ id: string }[]>`
-    INSERT INTO playlist_items (youtube_id, youtube_video_id, playlist_id, title)
-    VALUES (${`ITEM_${googleId}2`}, ${`VID_${googleId}2`}, ${playlist2!.id}, 'Test Video 2.1')
+  const [item2] = await sql<{ id: string }[]>`  
+    INSERT INTO playlist_items (youtube_id, youtube_video_id, playlist_id, title, duration)
+    VALUES (${`ITEM_${googleId}2`}, ${`VID_${googleId}2`}, ${playlist2!.id}, 'Test Video 2.1', 65)
     RETURNING id
   `
   const [item3] = await sql<{ id: string }[]>`
-    INSERT INTO playlist_items (youtube_id, youtube_video_id, playlist_id, title)
-    VALUES (${`ITEM_${googleId}3`}, ${`VID_${googleId}3`}, ${playlist2!.id}, 'Test Video 2.2')
+    INSERT INTO playlist_items (youtube_id, youtube_video_id, playlist_id, title, duration)
+    VALUES (${`ITEM_${googleId}3`}, ${`VID_${googleId}3`}, ${playlist2!.id}, 'Test Video 2.2', 3650)
     RETURNING id
   `
   return {
